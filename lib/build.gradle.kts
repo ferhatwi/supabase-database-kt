@@ -31,9 +31,10 @@ publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             pom {
+                from(components["java"])
                 groupId = "io.github.ferhatwi"
                 artifactId = "supabase-database-kt"
-                version = "0.0.1-rc"
+                version = "0.0.2"
                 name.set("Supabase Database")
                 description.set("Some experiments on Kotlin client for Supabase Database, currently in development phase.")
                 url.set("http://www.github.com/ferhatwi/supabase-database-kt")
@@ -82,10 +83,10 @@ dependencies {
     // Use the Kotlin JDK 8 standard library.
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    api("io.github.ferhatwi.supabase-kt:0.0.1-rc")
+    api("io.github.ferhatwi:supabase-kt:0.0.2")
 
-    api("io.ktor:ktor-client-core:1.6.7")
-    api("io.ktor:ktor-client-cio:1.6.7")
-    api("io.ktor:ktor-client-serialization:1.6.7")
-    api("io.ktor:ktor-client-gson:1.6.7")
+    implementation("io.ktor:ktor-client-core:1.6.7")
+    implementation("io.ktor:ktor-client-cio:1.6.7")
+    implementation("io.ktor:ktor-client-serialization:1.6.7")
+    implementation("io.ktor:ktor-client-gson:1.6.7")
 }

@@ -115,21 +115,21 @@ open class Query{
 
 
 
-    fun or(vararg filter : Filter): Query {
+    fun or(vararg filters : Filter): Query {
         return this.apply {
-            filter.add(Filter.Or(filter))
+            filter.add(Filter.Or(*filters))
         }
     }
 
-    fun and(vararg filter : Filter): Query {
+    fun and(vararg filters : Filter): Query {
         return this.apply {
-            filter.add(Filter.And(filter))
+            filter.add(Filter.And(*filters))
         }
     }
 
-    fun not(vararg filter : Filter): Query {
+    fun not(filter : Filter): Query {
         return this.apply {
-            filter.add(Filter.Not(filter))
+            this@Query.filter.add(Filter.Not(filter))
         }
     }
 
