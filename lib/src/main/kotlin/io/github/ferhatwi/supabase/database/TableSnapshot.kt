@@ -1,8 +1,14 @@
 package io.github.ferhatwi.supabase.database
 
-class TableSnapshot internal constructor(private val list : List<HashMap<String, Any?>>) {
+import com.google.gson.Gson
 
-    fun get() : List<RowSnapshot> {
+class TableSnapshot internal constructor(private val list: List<Map<String, Any?>>) {
+
+    override fun toString(): String {
+        return Gson().toJson(list)
+    }
+
+    fun getRows(): List<RowSnapshot> {
         return list.map {
             RowSnapshot(it)
         }

@@ -1,245 +1,287 @@
 package io.github.ferhatwi.supabase.database
 
-import io.github.ferhatwi.supabase.API
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.features.json.*
+import io.github.ferhatwi.supabase.Supabase
 import io.ktor.client.request.*
-import io.ktor.http.HttpHeaders
+import io.ktor.http.*
 
-open class Query{
-    internal lateinit var table : TableReference
+open class Query internal constructor(
+    private val table: String,
+    private var selections: MutableList<String> = mutableListOf(),
+    private var range: Pair<Int, Int>? = null,
+    private var filters: MutableList<Filter> = mutableListOf(),
+    private var modifiers: MutableList<Modifier> = mutableListOf()
+) {
 
-    private val filter = mutableListOf<Filter>()
-    private lateinit var range : Pair<Int, Int>
 
-    private fun isRangeInitialized() : Boolean {
-        return ::range.isInitialized
+    suspend fun insert(vararg data: Map<String, Any?>): TableSnapshot {
+        return add(data = data, merge = false)
     }
 
-    private fun finalizeFilterRequest() : String {
-        return "${table.tableRequest}?" +
-                if (filter.isEmpty()) {
-                    ""
-                } else {
-                    filter.joinToString("&") {
-                        it.asQueryString()
-                    }
+    suspend fun upsert(vararg data: Map<String, Any?>): TableSnapshot {
+        return add(data = data, merge = true)
+    }
+
+    private suspend fun add(vararg data: Map<String, Any?>, merge: Boolean): TableSnapshot {
+        val request =
+            "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${selections.asQueryString()}"
+
+        val result: List<HashMap<String, Any?>> = getClient().post(request) {
+            headers {
+                append("apikey", Supabase.API_KEY)
+                append(HttpHeaders.Authorization, Supabase.API_KEY)
+                append(HttpHeaders.ContentType, "application/json")
+                append(
+                    HttpHeaders.Prefer,
+                    "return=representation${if (merge) "&resolution=merge-duplicates" else ""}"
+                )
+
+                range?.let {
+                    append(HttpHeaders.Range, "${it.first}-${it.second}")
                 }
-    }
-
-    internal fun finalizeSelectionRequest() : String {
-        return "&select=" + if (table.columnName.isEmpty()) {
-            "*"
-        } else {
-            table.columnName.joinToString(",") {
-                it.name
             }
+
+            body = data
         }
+        return TableSnapshot(result)
     }
 
-    private fun finalizeRequest() : String {
-        return finalizeFilterRequest() + finalizeSelectionRequest()
-    }
+    suspend fun update(data: Map<String, Any?>): TableSnapshot {
+        val request = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${
+            appendQueryString(
+                filters.asQueryString(),
+                modifiers.asQueryString(),
+                selections.asQueryString()
+            )
+        }"
 
-    internal fun getClient() : HttpClient {
-        return HttpClient(CIO) {
-            install(JsonFeature) {
-                serializer = GsonSerializer()
+        val result: List<HashMap<String, Any?>> = getClient().patch(request) {
+            headers {
+                append("apikey", Supabase.API_KEY)
+                append(HttpHeaders.Authorization, Supabase.API_KEY)
+                append(HttpHeaders.ContentType, "application/json")
+                append(HttpHeaders.Prefer, "return=representation")
+
+                range?.let {
+                    append(HttpHeaders.Range, "${it.first}-${it.second}")
+                }
             }
+
+            body = data
         }
+        return TableSnapshot(result)
     }
 
     suspend fun get(): TableSnapshot {
-        val request = finalizeRequest()
-        val client = getClient()
+        val request = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${
+            appendQueryString(
+                filters.asQueryString(),
+                modifiers.asQueryString(),
+                selections.asQueryString()
+            )
+        }"
 
-        val result: List<HashMap<String, Any?>> = client.get(request) {
+        val result: List<HashMap<String, Any?>> = getClient().get(request) {
             headers {
-                append("apikey", API)
-                append(HttpHeaders.Authorization, API)
-                if (isRangeInitialized()) {
-                    append(HttpHeaders.Range, "${range.first}-${range.second}")
+                append("apikey", Supabase.API_KEY)
+                append(HttpHeaders.Authorization, Supabase.API_KEY)
+
+                range?.let {
+                    append(HttpHeaders.Range, "${it.first}-${it.second}")
                 }
             }
         }
         return TableSnapshot(result)
     }
 
-    suspend fun upsert(data : HashMap<String, Any?>): TableSnapshot {
-        val request = finalizeRequest()
-        val client = getClient()
-
-        val result: List<HashMap<String, Any?>> = client.post(request) {
-            headers {
-                append("apikey", API)
-                append(HttpHeaders.Authorization, API)
-                append(HttpHeaders.ContentType, "application/json")
-                append(HttpHeaders.Prefer, "return=representation")
-                append(HttpHeaders.Prefer, "resolution=merge-duplicates")
-            }
-            body = data
-        }
-        return TableSnapshot(result)
-    }
-
-    suspend fun update(data : HashMap<String, Any?>): TableSnapshot {
-        val request = finalizeRequest()
-        val client = getClient()
-
-        val result: List<HashMap<String, Any?>> = client.patch(request) {
-            headers {
-                append("apikey", API)
-                append(HttpHeaders.Authorization, API)
-                append(HttpHeaders.ContentType, "application/json")
-            }
-            body = data
-        }
-        return TableSnapshot(result)
-    }
-
-
-
     suspend fun delete(): TableSnapshot {
-        val request = finalizeRequest()
-        val client = getClient()
+        val request = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${
+            appendQueryString(
+                filters.asQueryString(),
+                modifiers.asQueryString(),
+                selections.asQueryString()
+            )
+        }"
 
-        val result: List<HashMap<String, Any?>> = client.delete(request) {
+
+        val result: List<HashMap<String, Any?>> = getClient().delete(request) {
             headers {
-                append("apikey", API)
-                append(HttpHeaders.Authorization, API)
+                append("apikey", Supabase.API_KEY)
+                append(HttpHeaders.Authorization, Supabase.API_KEY)
+                append(HttpHeaders.Prefer, "return=representation")
+
+                range?.let {
+                    append(HttpHeaders.Range, "${it.first}-${it.second}")
+                }
             }
         }
         return TableSnapshot(result)
     }
 
 
-
-    fun or(vararg filters : Filter): Query {
+    fun select(vararg columns: String): Query {
         return this.apply {
-            filter.add(Filter.Or(*filters))
+            selections = columns.toMutableList()
         }
     }
 
-    fun and(vararg filters : Filter): Query {
-        return this.apply {
-            filter.add(Filter.And(*filters))
-        }
-    }
-
-    fun not(filter : Filter): Query {
-        return this.apply {
-            this@Query.filter.add(Filter.Not(filter))
-        }
-    }
-
-    fun <T : Any>equalTo(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.EqualTo(columnName, value))
-        }
-    }
-
-    fun <T : Any>notEqualTo(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.NotEqualTo(columnName, value))
-        }
-    }
-    fun <T : Any>greaterThan(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.GreaterThan(columnName, value))
-        }
-    }
-    fun <T : Any>greaterThanOrEqualTo(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.GreaterThanOrEqualTo(columnName, value))
-        }
-    }
-    fun <T : Any>lessThan(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.LessThan(columnName, value))
-        }
-    }
-    fun <T : Any>lessThanOrEqualTo(columnName: String, value: T): Query {
-        return this.apply {
-            filter.add(Filter.LessThanOrEqualTo(columnName, value))
-        }
-    }
-
-    fun matchesPattern(columnName: String, pattern: String, caseSensitive : Boolean): Query {
-        val matchesPattern : Filter = if (caseSensitive) {
-            Filter.MatchesPattern.CaseSensitive(columnName, pattern)
-        } else {
-            Filter.MatchesPattern.CaseInsensitive(columnName, pattern)
-        }
-        return this.apply {
-            filter.add(matchesPattern)
-        }
-    }
-    fun `is`(columnName: String, value: Boolean?): Query {
-        return this.apply {
-            filter.add(Filter.Is(columnName, value))
-        }
-    }
-    fun <T : Any>`in`(columnName: String, value: Array<T>): Query {
-        return this.apply {
-            filter.add(Filter.In(columnName, value))
-        }
-    }
-    fun <T : Any>contains(columnName: String, value: Array<T>): Query {
-        return this.apply {
-            filter.add(Filter.Contains(columnName, value))
-        }
-    }
-    fun <T : Any>containedBy(columnName: String, value: Array<T>): Query {
-        return this.apply {
-            filter.add(Filter.ContainedBy(columnName, value))
-        }
-    }
-
-    fun rangeLessThan(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeLessThan(columnName, value))
-        }
-    }
-    fun rangeLessThanOrEqualTo(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeLessThanOrEqualTo(columnName, value))
-        }
-    }
-    fun rangeGreaterThan(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeGreaterThan(columnName, value))
-        }
-    }
-    fun rangeGreaterThanOrEqualTo(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeGreaterThanOrEqualTo(columnName, value))
-        }
-    }
-    fun rangeAdjacentTo(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeAdjacentTo(columnName, value))
-        }
-    }
-
-    fun rangeOverlaps(columnName: String, value: Range): Query {
-        return this.apply {
-            filter.add(Filter.RangeOverlaps(columnName, value))
-        }
-    }
-
-    fun textSearch(columnName: String, value: String, config: TextConfig = TextConfig.None()): Query {
-        return this.apply {
-            filter.add(Filter.TextSearch(columnName, value, config))
-        }
-    }
-
-
-
-    fun withRange(from: Int, to: Int): Query {
+    fun range(from: Int, to: Int): Query {
         return this.apply {
             range = Pair(from, to)
         }
     }
+
+
+    fun or(vararg filters: Filter): Query {
+        return this.apply {
+            this.filters.add(Filter.Or(*filters))
+        }
+    }
+
+    fun and(vararg filters: Filter): Query {
+        return this.apply {
+            this.filters.add(Filter.And(*filters))
+        }
+    }
+
+    fun not(filter: Filter): Query {
+        return this.apply {
+            this@Query.filters.add(Filter.Not(filter))
+        }
+    }
+
+    fun <T : Any> equalTo(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.EqualTo(column, value))
+        }
+    }
+
+    fun <T : Any> notEqualTo(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.NotEqualTo(column, value))
+        }
+    }
+
+    fun <T : Any> greaterThan(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.GreaterThan(column, value))
+        }
+    }
+
+    fun <T : Any> greaterThanOrEqualTo(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.GreaterThanOrEqualTo(column, value))
+        }
+    }
+
+    fun <T : Any> lessThan(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.LessThan(column, value))
+        }
+    }
+
+    fun <T : Any> lessThanOrEqualTo(column: String, value: T): Query {
+        return this.apply {
+            filters.add(Filter.LessThanOrEqualTo(column, value))
+        }
+    }
+
+    fun matchesPattern(column: String, pattern: String, caseSensitive: Boolean): Query {
+        val matchesPattern: Filter = if (caseSensitive) {
+            Filter.MatchesPattern.CaseSensitive(column, pattern)
+        } else {
+            Filter.MatchesPattern.CaseInsensitive(column, pattern)
+        }
+        return this.apply {
+            filters.add(matchesPattern)
+        }
+    }
+
+    fun `is`(column: String, value: Boolean?): Query {
+        return this.apply {
+            filters.add(Filter.Is(column, value))
+        }
+    }
+
+    fun <T : Any> `in`(column: String, value: Array<T>): Query {
+        return this.apply {
+            filters.add(Filter.In(column, value))
+        }
+    }
+
+    fun <T : Any> contains(column: String, value: Array<T>): Query {
+        return this.apply {
+            filters.add(Filter.Contains(column, value))
+        }
+    }
+
+    fun <T : Any> containedBy(column: String, value: Array<T>): Query {
+        return this.apply {
+            filters.add(Filter.ContainedBy(column, value))
+        }
+    }
+
+    fun rangeLessThan(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeLessThan(column, value))
+        }
+    }
+
+    fun rangeLessThanOrEqualTo(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeLessThanOrEqualTo(column, value))
+        }
+    }
+
+    fun rangeGreaterThan(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeGreaterThan(column, value))
+        }
+    }
+
+    fun rangeGreaterThanOrEqualTo(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeGreaterThanOrEqualTo(column, value))
+        }
+    }
+
+    fun rangeAdjacentTo(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeAdjacentTo(column, value))
+        }
+    }
+
+    fun rangeOverlaps(column: String, value: Range): Query {
+        return this.apply {
+            filters.add(Filter.RangeOverlaps(column, value))
+        }
+    }
+
+    fun textSearch(
+        column: String,
+        value: String,
+        config: TextConfig = TextConfig.None()
+    ): Query {
+        return this.apply {
+            filters.add(Filter.TextSearch(column, value, config))
+        }
+    }
+
+
+    fun limit(count: Int): Query {
+        return this.apply {
+            modifiers.add(Modifier.Limit(count))
+        }
+    }
+
+    fun order(
+        column: String,
+        orderBy: OrderBy = OrderBy.Ascending,
+        nullsFirst: Boolean = false
+    ): Query {
+        return this.apply {
+            modifiers.add(Modifier.Order(column, orderBy, nullsFirst))
+        }
+    }
+
 
 }

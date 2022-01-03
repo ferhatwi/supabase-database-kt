@@ -5,20 +5,17 @@ import io.github.ferhatwi.supabase.Supabase
 class SupabaseDatabase {
 
     companion object {
-        fun getInstance() : SupabaseDatabase {
+        fun getInstance(): SupabaseDatabase {
             return SupabaseDatabase()
         }
     }
 
-    fun table(tableName : String, vararg columnName : ColumnReference = emptyArray()) : TableReference {
-        val request = Query().apply {
-            table = TableReference(tableName, *columnName)
-        }
-        return request.table
+    fun table(name: String): TableReference {
+        return TableReference(name)
     }
 
 }
 
-fun Supabase.database() : SupabaseDatabase {
+fun Supabase.database(): SupabaseDatabase {
     return SupabaseDatabase.getInstance()
 }
