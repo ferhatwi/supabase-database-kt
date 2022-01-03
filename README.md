@@ -5,6 +5,6 @@ Initialize Supabase once with your API key as early as possible by `Supabase.ini
 ## Download
 ```
 dependencies {
-    implementation "io.github.ferhatwi:supabase-database-kt:0.0.1-rc"
+    implementation "io.github.ferhatwi:supabase-database-kt:0.0.2"
 }
 ```
