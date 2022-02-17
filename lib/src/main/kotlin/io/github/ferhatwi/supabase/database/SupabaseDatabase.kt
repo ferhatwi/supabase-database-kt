@@ -14,6 +14,26 @@ class SupabaseDatabase {
         return TableReference(name)
     }
 
+    fun schema(name: String): Schema {
+        return Schema(name)
+    }
+
+    private val events: MutableList<Event> = mutableListOf()
+
+    fun on(event: Event): LQuery {
+        return LQuery(events.apply { add(event) })
+    }
+
+    suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) =
+        listen(topic = arrayOf("realtime:*"), events = events, onSuccess = onSuccess)
+
+    suspend fun listen(vararg query: LQuery, onSuccess: (ListenSnapshot) -> Unit) = listen(
+        topic = query.map { it.topic() }.toTypedArray(),
+        events = events,
+        onSuccess = onSuccess
+    )
+
+
 }
 
 fun Supabase.database(): SupabaseDatabase {

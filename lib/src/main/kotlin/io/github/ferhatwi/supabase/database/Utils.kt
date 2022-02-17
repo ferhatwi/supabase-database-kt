@@ -1,8 +1,17 @@
 package io.github.ferhatwi.supabase.database
 
+import com.google.gson.Gson
+import io.github.ferhatwi.supabase.Supabase
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.features.json.*
+import io.ktor.client.features.websocket.*
+import io.ktor.client.request.*
+import io.ktor.http.*
+import io.ktor.http.cio.websocket.*
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.receiveAsFlow
 
 
 internal fun Modifier.asQueryString(): String {
@@ -14,125 +23,6 @@ internal fun Modifier.asQueryString(): String {
                 OrderBy.Descending -> "desc"
             }
         }.${if (nullsFirst) "nullfirst" else "nullslast"}"
-    }
-}
-
-internal fun Filter.asQueryString(): String {
-
-    return when (this) {
-        is Filter.Or -> {
-            "or=(${
-                filter.joinToString(",") {
-                    it.asQueryString().replace("=", ",")
-                }
-            })"
-        }
-        is Filter.And -> "and(${
-            filter.joinToString(",") {
-                it.asQueryString().replace("=", ",")
-            }
-        })"
-        is Filter.Not -> {
-            when (filter) {
-                is Filter.And -> "not.${filter.asQueryString()}"
-                is Filter.Not -> filter.asQueryString().replace("not.", "")
-                else -> filter.asQueryString().replaceFirst("=", "=not.")
-            }
-        }
-        is Filter.EqualTo<*> -> "${column}=eq.${value}"
-        is Filter.NotEqualTo<*> -> "${column}=neq.${value}"
-        is Filter.GreaterThan<*> -> "${column}=gt.${value}"
-        is Filter.GreaterThanOrEqualTo<*> -> "${column}=gte.${value}"
-        is Filter.LessThan<*> -> "${column}=lt.${value}"
-        is Filter.LessThanOrEqualTo<*> -> "${column}=lte.${value}"
-        is Filter.MatchesPattern.CaseSensitive -> "${column}=like.${pattern}"
-        is Filter.MatchesPattern.CaseInsensitive -> "${column}=ilike.${pattern}"
-        is Filter.Is -> "${column}=is.${value}"
-        is Filter.In<*> -> "${column}=in.${value.joinToString(prefix = "(", postfix = ")")}"
-        is Filter.Contains<*> -> "${column}=in.${value.joinToString(prefix = "[", postfix = "]")}"
-        is Filter.ContainedBy<*> -> "${column}=in.${
-            value.joinToString(
-                prefix = "[",
-                postfix = "]"
-            )
-        }"
-        is Filter.RangeLessThan -> "${column}=sr.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.RangeLessThanOrEqualTo -> "${column}=nxl.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.RangeGreaterThan -> "${column}=sl.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.RangeGreaterThanOrEqualTo -> "${column}=nxr.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.RangeAdjacentTo -> "${column}=adj.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.RangeOverlaps -> "${column}=ov.${
-            when (value.leftInterval) {
-                Interval.Open -> "("
-                Interval.Closed -> "["
-            }
-        }${value.from},${value.to}${
-            when (value.rightInterval) {
-                Interval.Open -> ")"
-                Interval.Closed -> "]"
-            }
-        }"
-        is Filter.TextSearch -> {
-            "$column=${
-                when (config) {
-                    is TextConfig.Plain -> "p1"
-                    is TextConfig.Phrase -> "ph"
-                    is TextConfig.Website -> "w1"
-                    is TextConfig.None -> ""
-                }
-            }fts${config.config}.${value}"
-        }
-
     }
 }
 
@@ -160,7 +50,7 @@ internal fun MutableList<Filter>.asQueryString(): String {
         ""
     } else {
         joinToString("&") {
-            it.asQueryString()
+            it.toString()
         }
     }
 }
@@ -178,6 +68,72 @@ internal fun MutableList<Modifier>.asQueryString(): String {
 
 internal fun appendQueryString(vararg queryStrings: String): String {
     return queryStrings.joinToString(separator = "&").replace("&&", "&").replace("&&", "&")
+}
+
+
+internal suspend fun listen(
+    vararg topic: String,
+    events: List<Event> = listOf(),
+    onSuccess: (ListenSnapshot) -> Unit
+) {
+    val request =
+        "wss://${Supabase.PROJECT_ID}.supabase.co/realtime/v1/websocket?vsn=1.0.0&apikey=${Supabase.API_KEY}"
+
+    val client = HttpClient(CIO) {
+        install(WebSockets)
+    }
+
+
+    client.webSocket(request) {
+
+
+        topic.forEach {
+            send(
+                Gson().toJson(
+                    mapOf(
+                        "topic" to it,
+                        "event" to "phx_join",
+                        "payload" to "{}",
+                        "ref" to "None"
+                    )
+                )
+            )
+        }
+
+        while (true) {
+            incoming.receiveAsFlow().mapNotNull { it as? Frame.Text }
+                .map { it.readText() }.collect {
+                    val whole = Gson().fromJson<Map<String, Any?>>(it, Map::class.java)
+
+                    if (whole.containsKey("payload")) {
+                        val payload = whole["payload"] as Map<String, Any?>
+
+                        val data = if (payload.containsKey("record")) {
+                            payload["record"] as Map<String, Any?>
+                        } else {
+                            if (payload.containsKey("old_record")) payload["old_record"] as Map<String, Any?> else mapOf()
+                        }
+                        if (data.isNotEmpty()) {
+
+                            val event = when (whole["event"]) {
+                                "INSERT" -> Event.Insert
+                                "UPDATE" -> Event.Update
+                                "DELETE" -> Event.Delete
+                                else -> null
+                            }
+
+                            if (events.isEmpty()) {
+                                onSuccess(ListenSnapshot(RowSnapshot(data), event!!))
+                            } else {
+                                if (events.contains(event)) {
+                                    onSuccess(ListenSnapshot(RowSnapshot(data), event!!))
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+    }
 }
 
 

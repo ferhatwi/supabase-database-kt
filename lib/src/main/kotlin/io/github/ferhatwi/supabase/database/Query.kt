@@ -5,45 +5,13 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 
 open class Query internal constructor(
-    private val table: String,
-    private var selections: MutableList<String> = mutableListOf(),
-    private var range: Pair<Int, Int>? = null,
-    private var filters: MutableList<Filter> = mutableListOf(),
-    private var modifiers: MutableList<Modifier> = mutableListOf()
+    internal val table: String,
+    internal val selections: MutableList<String> = mutableListOf(),
+    internal var range: Pair<Int, Int>? = null,
+    internal val filters: MutableList<Filter> = mutableListOf(),
+    internal val modifiers: MutableList<Modifier> = mutableListOf()
 ) {
 
-
-    suspend fun insert(vararg data: Map<String, Any?>): TableSnapshot {
-        return add(data = data, merge = false)
-    }
-
-    suspend fun upsert(vararg data: Map<String, Any?>): TableSnapshot {
-        return add(data = data, merge = true)
-    }
-
-    private suspend fun add(vararg data: Map<String, Any?>, merge: Boolean): TableSnapshot {
-        val request =
-            "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${selections.asQueryString()}"
-
-        val result: List<HashMap<String, Any?>> = getClient().post(request) {
-            headers {
-                append("apikey", Supabase.API_KEY)
-                append(HttpHeaders.Authorization, Supabase.API_KEY)
-                append(HttpHeaders.ContentType, "application/json")
-                append(
-                    HttpHeaders.Prefer,
-                    "return=representation${if (merge) "&resolution=merge-duplicates" else ""}"
-                )
-
-                range?.let {
-                    append(HttpHeaders.Range, "${it.first}-${it.second}")
-                }
-            }
-
-            body = data
-        }
-        return TableSnapshot(result)
-    }
 
     suspend fun update(data: Map<String, Any?>): TableSnapshot {
         val request = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1/$table?${
@@ -54,7 +22,7 @@ open class Query internal constructor(
             )
         }"
 
-        val result: List<HashMap<String, Any?>> = getClient().patch(request) {
+        val result: List<Map<String, Any?>> = getClient().patch(request) {
             headers {
                 append("apikey", Supabase.API_KEY)
                 append(HttpHeaders.Authorization, Supabase.API_KEY)
@@ -80,7 +48,7 @@ open class Query internal constructor(
             )
         }"
 
-        val result: List<HashMap<String, Any?>> = getClient().get(request) {
+        val result: List<Map<String, Any?>> = getClient().get(request) {
             headers {
                 append("apikey", Supabase.API_KEY)
                 append(HttpHeaders.Authorization, Supabase.API_KEY)
@@ -103,7 +71,7 @@ open class Query internal constructor(
         }"
 
 
-        val result: List<HashMap<String, Any?>> = getClient().delete(request) {
+        val result: List<Map<String, Any?>> = getClient().delete(request) {
             headers {
                 append("apikey", Supabase.API_KEY)
                 append(HttpHeaders.Authorization, Supabase.API_KEY)
@@ -117,17 +85,16 @@ open class Query internal constructor(
         return TableSnapshot(result)
     }
 
-
-    fun select(vararg columns: String): Query {
-        return this.apply {
-            selections = columns.toMutableList()
-        }
+    fun select(vararg columns: String): XQuery {
+        return XQuery(this.apply {
+            selections.addAll(columns.toMutableList())
+        })
     }
 
-    fun range(from: Int, to: Int): Query {
-        return this.apply {
+    fun range(from: Int, to: Int): XQuery {
+        return XQuery(this.apply {
             range = Pair(from, to)
-        }
+        })
     }
 
 
@@ -145,11 +112,11 @@ open class Query internal constructor(
 
     fun not(filter: Filter): Query {
         return this.apply {
-            this@Query.filters.add(Filter.Not(filter))
+            filters.add(Filter.Not(filter))
         }
     }
 
-    fun <T : Any> equalTo(column: String, value: T): Query {
+    open fun <T : Any> equalTo(column: String, value: T): Query {
         return this.apply {
             filters.add(Filter.EqualTo(column, value))
         }
