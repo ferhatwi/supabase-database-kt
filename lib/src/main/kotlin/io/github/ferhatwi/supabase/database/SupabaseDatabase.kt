@@ -1,41 +1,33 @@
 package io.github.ferhatwi.supabase.database
 
 import io.github.ferhatwi.supabase.Supabase
+import io.github.ferhatwi.supabase.database.references.RPCReference
+import io.github.ferhatwi.supabase.database.references.TableReference
+import io.github.ferhatwi.supabase.database.request.Listenable
+import io.github.ferhatwi.supabase.database.request.listen
+import io.github.ferhatwi.supabase.database.request.topic
+import io.github.ferhatwi.supabase.database.snapshots.ListenSnapshot
 
-class SupabaseDatabase {
+class SupabaseDatabase : Listenable(null, null, mutableListOf(), null) {
 
     companion object {
-        fun getInstance(): SupabaseDatabase {
-            return SupabaseDatabase()
-        }
+        fun getInstance() = SupabaseDatabase()
     }
 
-    fun table(name: String): TableReference {
-        return TableReference(name)
-    }
+    fun schema(name: String) = Schema(name, events)
 
-    fun schema(name: String): Schema {
-        return Schema(name)
-    }
+    fun table(name: String) = TableReference(name)
 
-    private val events: MutableList<Event> = mutableListOf()
+    fun rpc(name: String) = RPCReference(name)
 
-    fun on(event: Event): LQuery {
-        return LQuery(events.apply { add(event) })
-    }
-
-    suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) =
-        listen(topic = arrayOf("realtime:*"), events = events, onSuccess = onSuccess)
-
-    suspend fun listen(vararg query: LQuery, onSuccess: (ListenSnapshot) -> Unit) = listen(
-        topic = query.map { it.topic() }.toTypedArray(),
-        events = events,
-        onSuccess = onSuccess
-    )
-
+    suspend fun listen(vararg listenable: Listenable, onSuccess: (ListenSnapshot) -> Unit) =
+        listen(
+            topic = listenable.map { it.topic() }.toTypedArray(),
+            events = events,
+            onSuccess = onSuccess
+        )
 
 }
 
-fun Supabase.database(): SupabaseDatabase {
-    return SupabaseDatabase.getInstance()
-}
+fun Supabase.database() = SupabaseDatabase.getInstance()
+

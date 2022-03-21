@@ -1,17 +1,12 @@
 package io.github.ferhatwi.supabase.database
 
-class Schema internal constructor(internal val name: String) {
+import io.github.ferhatwi.supabase.database.references.ListenableTableReference
+import io.github.ferhatwi.supabase.database.request.Listenable
 
-    private val events: MutableList<Event> = mutableListOf()
 
-    fun table(name: String): TableReference {
-        return TableReference(name, this)
-    }
+class Schema internal constructor(name: String, events: MutableList<Event>) :
+    Listenable(name, null, events, null) {
 
-    fun on(event: Event): LQuery {
-        return LQuery(this, events.apply { add(event) })
-    }
-
-    suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) =
-        listen(topic = kotlin.arrayOf("realtime:${name}"), events = events, onSuccess = onSuccess)
+    fun table(name: String): ListenableTableReference =
+        ListenableTableReference(schema, name, events)
 }

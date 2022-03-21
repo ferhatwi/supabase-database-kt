@@ -1,8 +1,16 @@
 package io.github.ferhatwi.supabase.database
 
-sealed class TextConfig(val config: String?) {
-    class Plain(config: String? = null) : TextConfig(config)
-    class Phrase(config: String? = null) : TextConfig(config)
-    class Website(config: String? = null) : TextConfig(config)
-    class None(config: String? = null) : TextConfig(config)
+sealed class TextConfig(val text: String?) {
+    override fun toString() = when (this) {
+        is Plain -> "p1"
+        is Phrase -> "ph"
+        is Website -> "w1"
+        is None -> ""
+    }
+
+
+    class Plain(text: String? = null) : TextConfig(text)
+    class Phrase(text: String? = null) : TextConfig(text)
+    class Website(text: String? = null) : TextConfig(text)
+    class None(text: String? = null) : TextConfig(text)
 }

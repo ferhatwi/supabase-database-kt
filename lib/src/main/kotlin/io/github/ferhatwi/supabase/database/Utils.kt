@@ -1,31 +1,15 @@
 package io.github.ferhatwi.supabase.database
 
-import com.google.gson.Gson
 import io.github.ferhatwi.supabase.Supabase
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.features.*
 import io.ktor.client.features.json.*
-import io.ktor.client.features.websocket.*
 import io.ktor.client.request.*
+import io.ktor.client.utils.*
 import io.ktor.http.*
-import io.ktor.http.cio.websocket.*
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.receiveAsFlow
 
-
-internal fun Modifier.asQueryString(): String {
-    return when (this) {
-        is Modifier.Limit -> "limit=$count"
-        is Modifier.Order -> "order=$column.${
-            when (orderBy) {
-                OrderBy.Ascending -> "asc"
-                OrderBy.Descending -> "desc"
-            }
-        }.${if (nullsFirst) "nullfirst" else "nullslast"}"
-    }
-}
-
+internal fun databaseURL() = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1"
 
 internal fun getClient(): HttpClient {
     return HttpClient(CIO) {
@@ -35,106 +19,98 @@ internal fun getClient(): HttpClient {
     }
 }
 
-@JvmName("asQueryStringSelect")
-internal fun MutableList<String>.asQueryString(): String {
-    return if (isEmpty()) {
-        "select=*"
-    } else {
-        "select=${joinToString(separator = "&")}"
+
+internal suspend inline fun <reified T> HttpClient.request(
+    url: String,
+    method: HttpMethod,
+    body: Any = EmptyContent,
+    range: Pair<Int, Int>? = null,
+    noinline headers: HeadersBuilder.() -> Unit = {}
+): T {
+    return request(url) {
+        this.method = method
+        this.body = body
+        headers {
+            apiKey()
+            authorize()
+            range(range)
+            headers()
+        }
     }
 }
+
+internal fun HttpRequestBuilder.apiKey() {
+    headers.append("apikey", Supabase.API_KEY)
+}
+
+internal fun HttpRequestBuilder.authorize() {
+    headers.append(HttpHeaders.Authorization, "Bearer ${Supabase.AUTHORIZATION}")
+}
+
+internal fun HttpRequestBuilder.range(range: Pair<Int, Int>?) {
+    if (range != null) headers.append(HttpHeaders.Range, "${range.first}-${range.second}")
+}
+
+internal fun HeadersBuilder.applicationJson() {
+    append(HttpHeaders.ContentType, "application/json")
+}
+
+
+internal suspend fun runCatching(block: suspend () -> Unit, onFailure: (HttpStatusCode) -> Unit) =
+    runCatching { block() }.getOrElse {
+        when (it) {
+            is ResponseException -> onFailure(it.response.status)
+            else -> throw it
+        }
+    }
+
+
+@JvmName("asQueryStringSelect")
+internal fun List<String>.asQueryString() = if (isEmpty()) {
+    "select=*"
+} else {
+    "select=${joinToString(separator = "&")}"
+}
+
 
 @JvmName("asQueryStringFilter")
-internal fun MutableList<Filter>.asQueryString(): String {
-    return if (isEmpty()) {
-        ""
-    } else {
-        joinToString("&") {
-            it.toString()
-        }
+internal fun MutableList<Filter>.asQueryString() = if (isEmpty()) {
+    ""
+} else {
+    joinToString("&") {
+        it.toString()
     }
 }
 
-@JvmName("asQueryStringModifier")
-internal fun MutableList<Modifier>.asQueryString(): String {
-    return if (isEmpty()) {
-        ""
-    } else {
-        joinToString("&") {
-            it.asQueryString()
-        }
+
+@JvmName("asQueryStringOrder")
+internal fun MutableList<Order>.asQueryString() = if (isEmpty()) {
+    ""
+} else {
+    joinToString("&") {
+        it.toString()
     }
 }
+
+internal fun limitToString(limit: Int?) = "limit=$limit"
 
 internal fun appendQueryString(vararg queryStrings: String): String {
-    return queryStrings.joinToString(separator = "&").replace("&&", "&").replace("&&", "&")
+    queryStrings.toMutableList().removeIf {
+        it.isEmpty()
+    }
+    return queryStrings.joinToString(separator = "&")
 }
 
-
-internal suspend fun listen(
-    vararg topic: String,
-    events: List<Event> = listOf(),
-    onSuccess: (ListenSnapshot) -> Unit
-) {
-    val request =
-        "wss://${Supabase.PROJECT_ID}.supabase.co/realtime/v1/websocket?vsn=1.0.0&apikey=${Supabase.API_KEY}"
-
-    val client = HttpClient(CIO) {
-        install(WebSockets)
+internal fun HeadersBuilder.preferences(presentation: Boolean, merge: Boolean, count: Count?) {
+    val array = mutableListOf<String>()
+    if (presentation) {
+        array.add("return=representation")
     }
-
-
-    client.webSocket(request) {
-
-
-        topic.forEach {
-            send(
-                Gson().toJson(
-                    mapOf(
-                        "topic" to it,
-                        "event" to "phx_join",
-                        "payload" to "{}",
-                        "ref" to "None"
-                    )
-                )
-            )
-        }
-
-        while (true) {
-            incoming.receiveAsFlow().mapNotNull { it as? Frame.Text }
-                .map { it.readText() }.collect {
-                    val whole = Gson().fromJson<Map<String, Any?>>(it, Map::class.java)
-
-                    if (whole.containsKey("payload")) {
-                        val payload = whole["payload"] as Map<String, Any?>
-
-                        val data = if (payload.containsKey("record")) {
-                            payload["record"] as Map<String, Any?>
-                        } else {
-                            if (payload.containsKey("old_record")) payload["old_record"] as Map<String, Any?> else mapOf()
-                        }
-                        if (data.isNotEmpty()) {
-
-                            val event = when (whole["event"]) {
-                                "INSERT" -> Event.Insert
-                                "UPDATE" -> Event.Update
-                                "DELETE" -> Event.Delete
-                                else -> null
-                            }
-
-                            if (events.isEmpty()) {
-                                onSuccess(ListenSnapshot(RowSnapshot(data), event!!))
-                            } else {
-                                if (events.contains(event)) {
-                                    onSuccess(ListenSnapshot(RowSnapshot(data), event!!))
-                                }
-                            }
-                        }
-                    }
-                }
-        }
+    if (merge) {
+        array.add("resolution=merge-duplicates")
     }
+    if (count != null) {
+        array.add("count=$count")
+    }
+    append(HttpHeaders.Prefer, array.joinToString(separator = ","))
 }
-
-
-
