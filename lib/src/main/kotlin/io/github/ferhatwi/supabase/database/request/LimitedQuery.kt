@@ -19,8 +19,8 @@ open class LimitedQueryC internal constructor(
     internal open suspend fun call(
         data: Any? = null,
         head: Boolean = false,
-        onFailure: (HttpStatusCode) -> Unit,
-        onSuccess: (String?) -> Unit
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
+        onSuccess: (String) -> Unit
     ) {
         val url = "${databaseURL()}/rpc/$name?${
             appendQueryString(
@@ -47,7 +47,7 @@ open class LimitedQueryC internal constructor(
     }
 
     internal open suspend fun get(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) {
         val url = "${databaseURL()}/$name?${
@@ -60,20 +60,35 @@ open class LimitedQueryC internal constructor(
         }"
 
         runCatching({
-            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
-                getClient().request(
-                    schema,
-                    url,
-                    if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
-                    range,
-                    count
+            if (selections.isEmpty())
+                runCatchingTransformation(
+                    suspend {
+                        getClient().request(
+                            schema,
+                            url,
+                            if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
+                            range,
+                            count
+                        )
+                    }, { TableSnapshot(emptyList()) }, "", onSuccess
                 )
-            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
+            else
+                runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(
+                    suspend {
+                        getClient().request(
+                            schema,
+                            url,
+                            if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
+                            range,
+                            count
+                        )
+                    }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess
+                )
         }, onFailure)
     }
 
     internal open suspend fun delete(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) {
         val url = "${databaseURL()}/$name?${
@@ -95,13 +110,13 @@ open class LimitedQueryC internal constructor(
     internal open suspend fun update(
         column: String,
         value: Any?,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = update(mapOf(column to value), onFailure, onSuccess)
 
     internal open suspend fun update(
         data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) {
         val url = "${databaseURL()}/$name?${
@@ -126,13 +141,13 @@ open class LimitedQueryC internal constructor(
     internal open suspend fun insert(
         column: String,
         value: Any?,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = insert(data = arrayOf(mapOf(column to value)), onFailure, onSuccess)
 
     internal open suspend fun insert(
         vararg data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) {
         val url =
@@ -156,13 +171,13 @@ open class LimitedQueryC internal constructor(
     internal open suspend fun upsert(
         column: String,
         value: Any?,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = upsert(data = arrayOf(mapOf(column to value)), onFailure, onSuccess)
 
     internal open suspend fun upsert(
         vararg data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) {
         val url =
@@ -189,7 +204,7 @@ open class LimitedQueryC internal constructor(
 open class LimitedQueryR internal constructor(
     schema: String,
     function: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -199,8 +214,8 @@ open class LimitedQueryR internal constructor(
     public override suspend fun call(
         data: Any?,
         head: Boolean,
-        onFailure: (HttpStatusCode) -> Unit,
-        onSuccess: (String?) -> Unit
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
+        onSuccess: (String) -> Unit
     ) = super.call(data, head, onFailure, onSuccess)
 }
 
@@ -208,7 +223,7 @@ open class LimitedQueryR internal constructor(
 open class LimitedQuery internal constructor(
     schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -216,18 +231,25 @@ open class LimitedQuery internal constructor(
     limit: Int?
 ) : LimitedQueryC(schema, table, selections, range, count, filters, orders, limit) {
     public override suspend fun get(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.get(onFailure, onSuccess)
 
     public override suspend fun delete(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.delete(onFailure, onSuccess)
 
     public override suspend fun update(
+        column: String,
+        value: Any?,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
+        onSuccess: (TableSnapshot) -> Unit
+    ) = super.update(column, value, onFailure, onSuccess)
+
+    public override suspend fun update(
         data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.update(data, onFailure, onSuccess)
 }
@@ -235,45 +257,45 @@ open class LimitedQuery internal constructor(
 open class LimitedQueryX internal constructor(
     schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     orders: MutableList<Order>,
     limit: Int?
 ) : LimitedQueryC(schema, table, selections, range, count, mutableListOf(), orders, limit) {
     public override suspend fun get(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.get(onFailure, onSuccess)
 
     public override suspend fun delete(
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.delete(onFailure, onSuccess)
 
     public override suspend fun insert(
         column: String,
         value: Any?,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.insert(column, value, onFailure, onSuccess)
 
     public override suspend fun insert(
         vararg data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.insert(data = data, onFailure, onSuccess)
 
     public override suspend fun upsert(
         column: String,
         value: Any?,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.upsert(column, value, onFailure, onSuccess)
 
     public override suspend fun upsert(
         vararg data: Map<String, Any?>,
-        onFailure: (HttpStatusCode) -> Unit,
+        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
     ) = super.upsert(data = data, onFailure, onSuccess)
 

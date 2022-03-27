@@ -28,10 +28,11 @@ open class SelectableQuery internal constructor(
     fun select(vararg columns: String) = select<RangeableQuery>(*columns)
 
     override fun <T : Any> equalTo(column: String, value: T) =
-        EqualFilteredQuery(schema, name, Filter.EqualTo(column, value))
+        EqualFilteredQuery(schema, name, selections, range, count, Filter.EqualTo(column, value))
 
-    private val listenable = Listenable(schema, name, mutableListOf(), null)
+    private fun listenable() = Listenable(schema, name, mutableListOf(), null)
 
-    override fun on(event: Event) = listenable.on(event)
-    override suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) = listenable.listen(onSuccess)
+    override fun on(event: Event) = listenable().on(event)
+    override suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) =
+        listenable().listen(onSuccess)
 }

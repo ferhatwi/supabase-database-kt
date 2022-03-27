@@ -12,9 +12,10 @@ open class RangeableQueryR internal constructor(
 }
 
 open class RangeableQuery internal constructor(
-    schema : String,
+    schema: String,
     table: String,
     selections: MutableList<String>
 ) : CountableQuery(schema, table, selections, null) {
+
     fun range(from: Int, to: Int) = range<CountableQuery>(from, to)
 }

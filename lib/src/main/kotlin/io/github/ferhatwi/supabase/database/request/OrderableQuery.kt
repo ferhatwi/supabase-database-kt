@@ -11,7 +11,7 @@ private fun <A : LimitedQueryC> A.order(column: String, orderBy: OrderBy, nullsF
 open class OrderableQueryR internal constructor(
     schema: String,
     function: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -22,9 +22,9 @@ open class OrderableQueryR internal constructor(
 }
 
 open class OrderableQuery internal constructor(
-    schema : String,
+    schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -35,9 +35,9 @@ open class OrderableQuery internal constructor(
 }
 
 open class OrderableQueryX internal constructor(
-    schema : String,
+    schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     orders: MutableList<Order>,

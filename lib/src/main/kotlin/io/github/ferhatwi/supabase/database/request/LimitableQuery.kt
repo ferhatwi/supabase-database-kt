@@ -9,7 +9,7 @@ internal fun <A : LimitedQueryC> A.limit(value: Int): A = apply { limit = value 
 open class LimitableQueryR internal constructor(
     schema: String,
     function: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -19,9 +19,9 @@ open class LimitableQueryR internal constructor(
 }
 
 open class LimitableQuery internal constructor(
-    schema : String,
+    schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
@@ -31,9 +31,9 @@ open class LimitableQuery internal constructor(
 }
 
 open class LimitableQueryX internal constructor(
-    schema : String,
+    schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     orders: MutableList<Order>,

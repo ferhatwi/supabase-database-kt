@@ -10,7 +10,6 @@ import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.features.websocket.*
 import io.ktor.http.cio.websocket.*
-import io.ktor.network.sockets.*
 import kotlinx.coroutines.channels.onClosed
 import kotlinx.coroutines.channels.onSuccess
 
@@ -46,7 +45,9 @@ internal suspend fun listen(
                 incoming.tryReceive().onSuccess {
                     val frameText = (it as? Frame.Text)
                     if (frameText != null) {
-                        val whole = Gson().fromJson<Map<String, Any?>>(frameText.readText(), Map::class.java)
+                        val whole = Gson().fromJson<Map<String, Any?>>(frameText.readText(),
+                            Map::class.java
+                        )
 
                         if (whole.containsKey("payload")) {
                             val payload = whole["payload"] as Map<String, Any?>

@@ -1,8 +1,6 @@
 package io.github.ferhatwi.supabase.database
 
 import io.github.ferhatwi.supabase.Supabase
-import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
-import io.github.ferhatwi.supabase.database.snapshots.TableSnapshot
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -85,25 +83,33 @@ internal fun HeadersBuilder.applicationJson() {
 }
 
 
-internal suspend fun runCatching(block: suspend () -> Unit, onFailure: (HttpStatusCode) -> Unit) =
+internal suspend fun runCatching(
+    block: suspend () -> Unit,
+    onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit
+) =
     runCatching { block() }.getOrElse {
         when (it) {
-            is ResponseException -> onFailure(it.response.status)
+            is ResponseException -> {
+                val map: Map<String, Any?> = it.response.receive()
+                onFailure(map["message"] as String?, map["code"] as String?, it.response.status)
+            }
             else -> throw it
         }
     }
 
-internal suspend fun <A, B>runCatchingTransformation(
+internal suspend fun <A, B> runCatchingTransformation(
     block: suspend () -> A,
-    transform : (A) -> B,
-    onErrorValue : A,
+    transform: (A) -> B,
+    onErrorValue: A,
     onSuccess: (B) -> Unit
-) = runCatching { onSuccess(transform(block())) }.getOrElse {
-        when (it) {
-            is NoTransformationFoundException -> onSuccess(transform(onErrorValue))
-            else -> throw it
-        }
+) = runCatching {
+    onSuccess(transform(block()))
+}.getOrElse {
+    when (it) {
+        is NoTransformationFoundException -> onSuccess(transform(onErrorValue))
+        else -> throw it
     }
+}
 
 
 @JvmName("asQueryStringSelect")
@@ -135,25 +141,8 @@ internal fun MutableList<Order>.asQueryString() = if (isEmpty()) {
 
 internal fun limitToString(limit: Int?) = if (limit == null) "" else "limit=$limit"
 
-internal fun appendQueryString(vararg queryStrings: String): String {
-    queryStrings.toMutableList().removeIf {
+internal fun appendQueryString(vararg queryStrings: String) = queryStrings.toMutableList().apply {
+    removeIf {
         it.isEmpty()
     }
-    return queryStrings.joinToString(separator = "&")
-}
-
-
-/*
-internal fun HeadersBuilder.preferences(presentation: Boolean, merge: Boolean, count: Count?) {
-    val array = mutableListOf<String>()
-    if (presentation) {
-        array.add("return=representation")
-    }
-    if (merge) {
-        array.add("resolution=merge-duplicates")
-    }
-    if (count != null) {
-        array.add("count=$count")
-    }
-    append(HttpHeaders.Prefer, array.joinToString(separator = ","))
-}*/
+}.joinToString(separator = "&")

@@ -84,7 +84,7 @@ private fun <A : LimitedQueryC> A.textSearch(column: String, value: String, conf
 open class FilterableQueryR internal constructor(
     schema: String,
     function: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>
@@ -140,9 +140,9 @@ open class FilterableQueryR internal constructor(
 }
 
 open class FilterableQuery internal constructor(
-    schema : String,
+    schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>
@@ -199,57 +199,59 @@ open class FilterableQuery internal constructor(
 open class FilterableQueryX internal constructor(
     schema: String,
     table: String,
-    selections: MutableList<String>,
+    selections: List<String>,
     range: Pair<Int, Int>?,
     count: Count?,
 ) : OrderableQueryX(schema, table, selections, range, count, mutableListOf()) {
-    private val filterableQuery = FilterableQuery(schema, table, selections, range, count, mutableListOf())
 
-    fun or(vararg filters: Filter) = filterableQuery.or(*filters)
-    fun and(vararg filters: Filter) = filterableQuery.and(*filters)
-    fun not(filter: Filter) = filterableQuery.not(filter)
-    open fun <T : Any> equalTo(column: String, value: T) = filterableQuery.equalTo(column, value)
+    private fun filterableQuery() =
+        FilterableQuery(schema, name, selections, range, count, mutableListOf())
+
+    fun or(vararg filters: Filter) = filterableQuery().or(*filters)
+    fun and(vararg filters: Filter) = filterableQuery().and(*filters)
+    fun not(filter: Filter) = filterableQuery().not(filter)
+    open fun <T : Any> equalTo(column: String, value: T) = filterableQuery().equalTo(column, value)
     fun <T : Any> notEqualTo(column: String, value: T) =
-        filterableQuery.notEqualTo(column, value)
+        filterableQuery().notEqualTo(column, value)
 
     fun <T : Any> greaterThan(column: String, value: T) =
-        filterableQuery.greaterThan(column, value)
+        filterableQuery().greaterThan(column, value)
 
     fun <T : Any> greaterThanOrEqualTo(column: String, value: T) =
-        filterableQuery.greaterThanOrEqualTo(column, value)
+        filterableQuery().greaterThanOrEqualTo(column, value)
 
-    fun <T : Any> lessThan(column: String, value: T) = filterableQuery.lessThan(column, value)
+    fun <T : Any> lessThan(column: String, value: T) = filterableQuery().lessThan(column, value)
     fun <T : Any> lessThanOrEqualTo(column: String, value: T) =
-        filterableQuery.lessThanOrEqualTo(column, value)
+        filterableQuery().lessThanOrEqualTo(column, value)
 
     fun matchesPattern(column: String, pattern: String, caseSensitive: Boolean) =
-        filterableQuery.matchesPattern(column, pattern, caseSensitive)
+        filterableQuery().matchesPattern(column, pattern, caseSensitive)
 
-    fun `is`(column: String, value: Boolean?) = filterableQuery.`is`(column, value)
-    fun <T : Any> `in`(column: String, value: Array<T>) = filterableQuery.`in`(column, value)
+    fun `is`(column: String, value: Boolean?) = filterableQuery().`is`(column, value)
+    fun <T : Any> `in`(column: String, value: Array<T>) = filterableQuery().`in`(column, value)
 
     fun <T : Any> contains(column: String, value: Array<T>) =
-        filterableQuery.contains(column, value)
+        filterableQuery().contains(column, value)
 
     fun <T : Any> containedBy(column: String, value: Array<T>) =
-        filterableQuery.containedBy(column, value)
+        filterableQuery().containedBy(column, value)
 
-    fun rangeLessThan(column: String, value: Range) = filterableQuery.rangeLessThan(column, value)
+    fun rangeLessThan(column: String, value: Range) = filterableQuery().rangeLessThan(column, value)
 
     fun rangeLessThanOrEqualTo(column: String, value: Range) =
-        filterableQuery.rangeLessThanOrEqualTo(column, value)
+        filterableQuery().rangeLessThanOrEqualTo(column, value)
 
     fun rangeGreaterThan(column: String, value: Range) =
-        filterableQuery.rangeGreaterThan(column, value)
+        filterableQuery().rangeGreaterThan(column, value)
 
     fun rangeGreaterThanOrEqualTo(column: String, value: Range) =
-        filterableQuery.rangeGreaterThanOrEqualTo(column, value)
+        filterableQuery().rangeGreaterThanOrEqualTo(column, value)
 
     fun rangeAdjacentTo(column: String, value: Range) =
-        filterableQuery.rangeAdjacentTo(column, value)
+        filterableQuery().rangeAdjacentTo(column, value)
 
-    fun rangeOverlaps(column: String, value: Range) = filterableQuery.rangeOverlaps(column, value)
+    fun rangeOverlaps(column: String, value: Range) = filterableQuery().rangeOverlaps(column, value)
 
     fun textSearch(column: String, value: String, config: TextConfig) =
-        filterableQuery.textSearch(column, value, config)
+        filterableQuery().textSearch(column, value, config)
 }

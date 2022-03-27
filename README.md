@@ -3,7 +3,7 @@
 ### With BOM
 ```groovy  
 dependencies {  
- implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.1")
+ implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.2")
  implementation "io.github.ferhatwi:supabase-database-kt"
 }  
 ```  
@@ -11,7 +11,7 @@ dependencies {
 #### NOTICE: BOM is strongly recommended to prevent conflicts.
 ```groovy 
 dependencies {  
- implementation "io.github.ferhatwi:supabase-database-kt:0.3.1"
+ implementation "io.github.ferhatwi:supabase-database-kt:0.3.2"
 }  
 ```  
 ## How to use?
@@ -26,6 +26,7 @@ val db = Supabase.database()
 - String
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -38,6 +39,7 @@ val db = Supabase.database()
 - Nothing
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .rpc("FUNCTION_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -47,7 +49,7 @@ db
     .limit(VALUE)
     .call(
         DATA,
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -59,6 +61,7 @@ db
 - Rows
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -71,6 +74,7 @@ db
 - Nothing
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .table("TABLE_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -79,7 +83,7 @@ db
     .order("COLUMN", OrderBy, NULLS_WHEN)
     .limit(VALUE)
     .get(
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -91,6 +95,7 @@ db
 - Rows
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -103,6 +108,7 @@ db
 - Nothing
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .table("TABLE_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -111,7 +117,7 @@ db
     .order("COLUMN", OrderBy, NULLS_WHEN)
     .limit(VALUE)
     .delete(
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -123,6 +129,7 @@ db
 - Rows
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -134,6 +141,7 @@ db
 - Nothing
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .table("TABLE_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -143,7 +151,7 @@ db
     .limit(VALUE)
     .update(
         DATA,
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -155,6 +163,7 @@ db
 - Rows
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -166,6 +175,7 @@ db
 - Filters
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .table("TABLE_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -174,7 +184,7 @@ db
     .limit(VALUE)
     .insert(
         DATA,
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -186,6 +196,7 @@ db
 - Rows
 #
 ###### Optional
+- Schema
 - Selection
 - Range
 - Count type
@@ -197,6 +208,7 @@ db
 - Filters
 ```kotlin
 db
+    .schema("SCHEMA_NAME")
     .table("TABLE_NAME")
     .select("COLUMN1", "COLUMN2")
     .range(FROM, TO)
@@ -205,7 +217,7 @@ db
     .limit(VALUE)
     .upsert(
         DATA,
-        onFailure = {
+        onFailure = { message, code, statusCode ->
 
         }, onSuccess = {
 
@@ -236,13 +248,11 @@ db
 ```
 ## Behaviors
 #### Request
-- Schema : If specified, only listening is allowed.
-- Selection : Not specifying any column results in selecting all columns. Can be specified before range.
+- Schema : Default value is ```"public"```.
+- Selection : Specifying select with our without any columns returns data, otherwise doesn't. Can be specified before range.
 - Range : Can be specified before count type.
 - Count type : Can be specified before filters.
 - Filters : Can be specified before orders.
 - Orders : Can be specified before limit.
-#### Return
-- All requests return data.
 ## Improvements and Bugs
 Feel free to improve, upgrade, fix or report bugs!
