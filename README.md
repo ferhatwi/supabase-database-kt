@@ -3,7 +3,7 @@
 ### With BOM
 ```groovy  
 dependencies {  
- implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.0")
+ implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.1")
  implementation "io.github.ferhatwi:supabase-database-kt"
 }  
 ```  
@@ -11,7 +11,7 @@ dependencies {
 #### NOTICE: BOM is strongly recommended to prevent conflicts.
 ```groovy 
 dependencies {  
- implementation "io.github.ferhatwi:supabase-database-kt:0.3.0"
+ implementation "io.github.ferhatwi:supabase-database-kt:0.3.1"
 }  
 ```  
 ## How to use?
