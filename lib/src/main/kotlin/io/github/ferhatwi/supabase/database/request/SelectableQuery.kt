@@ -6,23 +6,31 @@ import io.github.ferhatwi.supabase.database.snapshots.ListenSnapshot
 
 
 private fun <A : LimitedQueryC> A.select(vararg columns: String): A =
-    apply { selections = columns.toList() }
+    apply {
+        val mutableList = columns.toMutableList()
+        mutableList.ifEmpty {
+            mutableList.add("*")
+        }
+        selections = mutableList
+    }
 
 open class SelectableQueryR internal constructor(
-    name: String
-) : RangeableQueryR(name, mutableListOf()) {
+    schema: String,
+    function: String,
+) : RangeableQueryR(schema, function, mutableListOf()) {
     fun select(vararg columns: String) = select<RangeableQueryR>(*columns)
 }
 
 open class SelectableQuery internal constructor(
-    name: String
-) : RangeableQuery(name, mutableListOf()), ListenableI {
+    schema: String,
+    table: String
+) : RangeableQuery(schema, table, mutableListOf()), ListenableI {
     fun select(vararg columns: String) = select<RangeableQuery>(*columns)
 
     override fun <T : Any> equalTo(column: String, value: T) =
-        EqualFilteredQuery(name, Filter.EqualTo(column, value))
+        EqualFilteredQuery(schema, name, Filter.EqualTo(column, value))
 
-    private val listenable = Listenable("public", name, mutableListOf(), null)
+    private val listenable = Listenable(schema, name, mutableListOf(), null)
 
     override fun on(event: Event) = listenable.on(event)
     override suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) = listenable.listen(onSuccess)

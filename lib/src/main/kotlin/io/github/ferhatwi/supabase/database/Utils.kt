@@ -1,7 +1,10 @@
 package io.github.ferhatwi.supabase.database
 
 import io.github.ferhatwi.supabase.Supabase
+import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
+import io.github.ferhatwi.supabase.database.snapshots.TableSnapshot
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.features.*
 import io.ktor.client.features.json.*
@@ -21,22 +24,34 @@ internal fun getClient(): HttpClient {
 
 
 internal suspend inline fun <reified T> HttpClient.request(
+    schema: String,
     url: String,
     method: HttpMethod,
-    body: Any = EmptyContent,
     range: Pair<Int, Int>? = null,
+    count: Count? = null,
+    body: Any = EmptyContent,
+    merge: Boolean = false,
     noinline headers: HeadersBuilder.() -> Unit = {}
 ): T {
     return request(url) {
         this.method = method
         this.body = body
         headers {
+            profile(method, schema)
             apiKey()
             authorize()
             range(range)
+            preference(count, url.contains("select"), merge)
             headers()
         }
     }
+}
+
+internal fun HttpRequestBuilder.profile(httpMethod: HttpMethod, name: String) {
+    if (name != "public") headers.append(
+        if (httpMethod == HttpMethod.Get || httpMethod == HttpMethod.Head) "Accept-Profile" else "Content-Profile",
+        name
+    )
 }
 
 internal fun HttpRequestBuilder.apiKey() {
@@ -49,6 +64,20 @@ internal fun HttpRequestBuilder.authorize() {
 
 internal fun HttpRequestBuilder.range(range: Pair<Int, Int>?) {
     if (range != null) headers.append(HttpHeaders.Range, "${range.first}-${range.second}")
+}
+
+internal fun HttpRequestBuilder.preference(count: Count?, representation: Boolean, merge: Boolean) {
+    val array = mutableListOf<String>()
+    if (count != null) {
+        array.add("count=$count")
+    }
+    if (representation) {
+        array.add("return=representation")
+    }
+    if (merge) {
+        array.add("resolution=merge-duplicates")
+    }
+    headers.append(HttpHeaders.Prefer, array.joinToString(separator = ","))
 }
 
 internal fun HeadersBuilder.applicationJson() {
@@ -64,10 +93,22 @@ internal suspend fun runCatching(block: suspend () -> Unit, onFailure: (HttpStat
         }
     }
 
+internal suspend fun <A, B>runCatchingTransformation(
+    block: suspend () -> A,
+    transform : (A) -> B,
+    onErrorValue : A,
+    onSuccess: (B) -> Unit
+) = runCatching { onSuccess(transform(block())) }.getOrElse {
+        when (it) {
+            is NoTransformationFoundException -> onSuccess(transform(onErrorValue))
+            else -> throw it
+        }
+    }
+
 
 @JvmName("asQueryStringSelect")
 internal fun List<String>.asQueryString() = if (isEmpty()) {
-    "select=*"
+    ""
 } else {
     "select=${joinToString(separator = "&")}"
 }
@@ -92,7 +133,7 @@ internal fun MutableList<Order>.asQueryString() = if (isEmpty()) {
     }
 }
 
-internal fun limitToString(limit: Int?) = "limit=$limit"
+internal fun limitToString(limit: Int?) = if (limit == null) "" else "limit=$limit"
 
 internal fun appendQueryString(vararg queryStrings: String): String {
     queryStrings.toMutableList().removeIf {
@@ -101,6 +142,8 @@ internal fun appendQueryString(vararg queryStrings: String): String {
     return queryStrings.joinToString(separator = "&")
 }
 
+
+/*
 internal fun HeadersBuilder.preferences(presentation: Boolean, merge: Boolean, count: Count?) {
     val array = mutableListOf<String>()
     if (presentation) {
@@ -113,4 +156,4 @@ internal fun HeadersBuilder.preferences(presentation: Boolean, merge: Boolean, c
         array.add("count=$count")
     }
     append(HttpHeaders.Prefer, array.joinToString(separator = ","))
-}
+}*/

@@ -82,12 +82,13 @@ private fun <A : LimitedQueryC> A.textSearch(column: String, value: String, conf
 
 
 open class FilterableQueryR internal constructor(
-    name: String,
+    schema: String,
+    function: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>
-) : OrderableQueryR(name, selections, range, count, filters, mutableListOf()) {
+) : OrderableQueryR(schema, function, selections, range, count, filters, mutableListOf()) {
 
     fun or(vararg filters: Filter) = or<FilterableQueryR>(*filters)
     fun and(vararg filters: Filter) = and<FilterableQueryR>(*filters)
@@ -139,12 +140,13 @@ open class FilterableQueryR internal constructor(
 }
 
 open class FilterableQuery internal constructor(
-    name: String,
+    schema : String,
+    table: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>
-) : OrderableQuery(name, selections, range, count, filters, mutableListOf()) {
+) : OrderableQuery(schema, table, selections, range, count, filters, mutableListOf()) {
     fun or(vararg filters: Filter) = or<FilterableQuery>(*filters)
     fun and(vararg filters: Filter) = and<FilterableQuery>(*filters)
     fun not(filter: Filter) = not<FilterableQuery>(filter)
@@ -195,12 +197,13 @@ open class FilterableQuery internal constructor(
 }
 
 open class FilterableQueryX internal constructor(
-    name: String,
+    schema: String,
+    table: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
-) : OrderableQueryX(name, selections, range, count, mutableListOf()) {
-    private val filterableQuery = FilterableQuery(name, selections, range, count, mutableListOf())
+) : OrderableQueryX(schema, table, selections, range, count, mutableListOf()) {
+    private val filterableQuery = FilterableQuery(schema, table, selections, range, count, mutableListOf())
 
     fun or(vararg filters: Filter) = filterableQuery.or(*filters)
     fun and(vararg filters: Filter) = filterableQuery.and(*filters)

@@ -3,9 +3,11 @@ package io.github.ferhatwi.supabase.database.request
 import io.github.ferhatwi.supabase.database.*
 import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
 import io.github.ferhatwi.supabase.database.snapshots.TableSnapshot
+import io.ktor.client.utils.*
 import io.ktor.http.*
 
 open class LimitedQueryC internal constructor(
+    internal val schema: String,
     internal val name: String,
     internal var selections: List<String>,
     internal var range: Pair<Int, Int>?,
@@ -16,8 +18,9 @@ open class LimitedQueryC internal constructor(
 ) {
     internal open suspend fun call(
         data: Any? = null,
+        head: Boolean = false,
         onFailure: (HttpStatusCode) -> Unit,
-        onSuccess: (String) -> Unit
+        onSuccess: (String?) -> Unit
     ) {
         val url = "${databaseURL()}/rpc/$name?${
             appendQueryString(
@@ -29,21 +32,19 @@ open class LimitedQueryC internal constructor(
         }"
 
         runCatching({
-            val result : String = if (data == null) {
-                getClient().request(url, HttpMethod.Post) {
-                    preferences(presentation = true, merge = false, count = count)
-                }
-            } else {
-                getClient().request(url, HttpMethod.Post, data) {
-                    applicationJson()
-                    preferences(presentation = true, merge = false, count = count)
-                }
-            }
-            onSuccess(result)
+            runCatchingTransformation(suspend {
+                getClient().request(
+                    schema,
+                    url,
+                    if (head) HttpMethod.Head else HttpMethod.Post,
+                    range,
+                    count,
+                    data ?: EmptyContent
+                )
+            }, { it }, "", onSuccess)
         }, onFailure)
 
     }
-
 
     internal open suspend fun get(
         onFailure: (HttpStatusCode) -> Unit,
@@ -59,10 +60,15 @@ open class LimitedQueryC internal constructor(
         }"
 
         runCatching({
-            val result: List<Map<String, Any?>> = getClient().request(url, HttpMethod.Get) {
-                preferences(presentation = false, merge = false, count = count)
-            }
-            onSuccess(TableSnapshot(result.map { RowSnapshot(it) }))
+            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
+                getClient().request(
+                    schema,
+                    url,
+                    if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
+                    range,
+                    count
+                )
+            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
         }, onFailure)
     }
 
@@ -79,12 +85,10 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-
         runCatching({
-            val result: List<Map<String, Any?>> = getClient().request(url, HttpMethod.Delete) {
-                preferences(presentation = true, merge = false, count = count)
-            }
-            onSuccess(TableSnapshot(result.map { RowSnapshot(it) }))
+            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
+                getClient().request(schema, url, HttpMethod.Delete, range, count)
+            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
         }, onFailure)
     }
 
@@ -110,11 +114,11 @@ open class LimitedQueryC internal constructor(
         }"
 
         runCatching({
-            val result: List<Map<String, Any?>> = getClient().request(url, HttpMethod.Patch, data) {
-                applicationJson()
-                preferences(presentation = true, merge = false, count = count)
-            }
-            onSuccess(TableSnapshot(result.map { RowSnapshot(it) }))
+            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
+                getClient().request(schema, url, HttpMethod.Patch, range, count, data) {
+                    applicationJson()
+                }
+            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
         }, onFailure)
     }
 
@@ -141,11 +145,11 @@ open class LimitedQueryC internal constructor(
             }"
 
         runCatching({
-            val result: List<Map<String, Any?>> = getClient().request(url, HttpMethod.Post, data) {
-                applicationJson()
-                preferences(presentation = true, merge = false, count = count)
-            }
-            onSuccess(TableSnapshot(result.map { RowSnapshot(it) }))
+            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
+                getClient().request(schema, url, HttpMethod.Post, range, count, body = data) {
+                    applicationJson()
+                }
+            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
         }, onFailure)
     }
 
@@ -171,11 +175,11 @@ open class LimitedQueryC internal constructor(
             }"
 
         runCatching({
-            val result: List<Map<String, Any?>> = getClient().request(url, HttpMethod.Post, data) {
-                applicationJson()
-                preferences(presentation = true, merge = true, count = count)
-            }
-            onSuccess(TableSnapshot(result.map { RowSnapshot(it) }))
+            runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(suspend {
+                getClient().request(schema, url, HttpMethod.Post, range, count, data, true) {
+                    applicationJson()
+                }
+            }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess)
         }, onFailure)
     }
 
@@ -183,31 +187,34 @@ open class LimitedQueryC internal constructor(
 }
 
 open class LimitedQueryR internal constructor(
-    name: String,
+    schema: String,
+    function: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
     orders: MutableList<Order>,
     limit: Int?
-) : LimitedQueryC(name, selections, range, count, filters, orders, limit) {
+) : LimitedQueryC(schema, function, selections, range, count, filters, orders, limit) {
     public override suspend fun call(
         data: Any?,
+        head: Boolean,
         onFailure: (HttpStatusCode) -> Unit,
-        onSuccess: (String) -> Unit
-    ) = super.call(data, onFailure, onSuccess)
+        onSuccess: (String?) -> Unit
+    ) = super.call(data, head, onFailure, onSuccess)
 }
 
 
 open class LimitedQuery internal constructor(
-    name: String,
+    schema: String,
+    table: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     filters: MutableList<Filter>,
     orders: MutableList<Order>,
     limit: Int?
-) : LimitedQueryC(name, selections, range, count, filters, orders, limit) {
+) : LimitedQueryC(schema, table, selections, range, count, filters, orders, limit) {
     public override suspend fun get(
         onFailure: (HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
@@ -226,13 +233,14 @@ open class LimitedQuery internal constructor(
 }
 
 open class LimitedQueryX internal constructor(
-    name: String,
+    schema: String,
+    table: String,
     selections: MutableList<String>,
     range: Pair<Int, Int>?,
     count: Count?,
     orders: MutableList<Order>,
     limit: Int?
-) : LimitedQueryC(name, selections, range, count, mutableListOf(), orders, limit) {
+) : LimitedQueryC(schema, table, selections, range, count, mutableListOf(), orders, limit) {
     public override suspend fun get(
         onFailure: (HttpStatusCode) -> Unit,
         onSuccess: (TableSnapshot) -> Unit
