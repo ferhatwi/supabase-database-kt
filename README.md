@@ -235,7 +235,12 @@ db
 ###### Required
 - Nothing
 ###### Disallowed
-- Nothing
+- Selection
+- Range
+- Count type
+- Filters other than Equal To
+- Orders
+- Limit
 ```kotlin
 db
     .schema("SCHEMA_NAME")
