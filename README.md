@@ -6,7 +6,7 @@
 
 ```groovy  
 dependencies {  
- implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.2")
+ implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.3")
  implementation "io.github.ferhatwi:supabase-database-kt"
 }  
 ```  
@@ -17,7 +17,7 @@ dependencies {
 
 ```groovy 
 dependencies {  
- implementation "io.github.ferhatwi:supabase-database-kt:0.3.2"
+ implementation "io.github.ferhatwi:supabase-database-kt:0.3.3"
 }  
 ```  
 
