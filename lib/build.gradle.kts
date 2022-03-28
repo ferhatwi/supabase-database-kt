@@ -25,7 +25,7 @@ publishing {
                 from(components["java"])
                 groupId = "io.github.ferhatwi"
                 artifactId = "supabase-database-kt"
-                version = "0.3.2"
+                version = "0.3.3"
                 name.set("Supabase Database")
                 description.set("Kotlin client for Supabase Database with Realtime")
                 url.set("http://www.github.com/ferhatwi/supabase-database-kt")
@@ -74,5 +74,4 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
     api("io.github.ferhatwi:supabase-kt:0.2.0")
-
 }

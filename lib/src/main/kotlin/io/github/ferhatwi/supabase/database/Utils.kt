@@ -83,33 +83,25 @@ internal fun HeadersBuilder.applicationJson() {
 }
 
 
-internal suspend fun runCatching(
-    block: suspend () -> Unit,
-    onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit
-) =
-    runCatching { block() }.getOrElse {
+internal suspend inline fun <reified T> runCatching(
+    block: () -> T,
+    onSuccess: (T) -> Unit,
+    defaultValueForNoTransformation: T,
+    head: Boolean = false
+) = runCatching { if (head) onSuccess(defaultValueForNoTransformation) else onSuccess(block()) }
+    .getOrElse {
         when (it) {
             is ResponseException -> {
                 val map: Map<String, Any?> = it.response.receive()
-                onFailure(map["message"] as String?, map["code"] as String?, it.response.status)
+                val message = map["message"] as String?
+                val code = map["code"] as String?
+                val statusCode = it.response
+                throw SupabaseDatabaseException("$message $code, $statusCode")
             }
+            is NoTransformationFoundException -> onSuccess(defaultValueForNoTransformation)
             else -> throw it
         }
     }
-
-internal suspend fun <A, B> runCatchingTransformation(
-    block: suspend () -> A,
-    transform: (A) -> B,
-    onErrorValue: A,
-    onSuccess: (B) -> Unit
-) = runCatching {
-    onSuccess(transform(block()))
-}.getOrElse {
-    when (it) {
-        is NoTransformationFoundException -> onSuccess(transform(onErrorValue))
-        else -> throw it
-    }
-}
 
 
 @JvmName("asQueryStringSelect")

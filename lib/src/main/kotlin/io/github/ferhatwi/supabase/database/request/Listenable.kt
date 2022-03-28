@@ -4,21 +4,27 @@ import com.google.gson.Gson
 import io.github.ferhatwi.supabase.Supabase
 import io.github.ferhatwi.supabase.database.Event
 import io.github.ferhatwi.supabase.database.Filter
+import io.github.ferhatwi.supabase.database.Listener
 import io.github.ferhatwi.supabase.database.snapshots.ListenSnapshot
 import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.features.websocket.*
 import io.ktor.http.cio.websocket.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.onClosed
 import kotlinx.coroutines.channels.onSuccess
+import kotlinx.coroutines.flow.cancellable
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
 
 
 internal suspend fun listen(
     vararg topic: String,
-    events: List<Event> = listOf(),
-    onSuccess: (ListenSnapshot) -> Unit
-) {
+    events: List<Event> = listOf()
+) = flow {
     val request =
         "wss://${Supabase.PROJECT_ID}.supabase.co/realtime/v1/websocket?vsn=1.0.0&apikey=${Supabase.AUTHORIZATION}"
 
@@ -45,7 +51,8 @@ internal suspend fun listen(
                 incoming.tryReceive().onSuccess {
                     val frameText = (it as? Frame.Text)
                     if (frameText != null) {
-                        val whole = Gson().fromJson<Map<String, Any?>>(frameText.readText(),
+                        val whole = Gson().fromJson<Map<String, Any?>>(
+                            frameText.readText(),
                             Map::class.java
                         )
 
@@ -67,7 +74,7 @@ internal suspend fun listen(
                                 }
 
                                 if (events.isEmpty() || events.contains(event)) {
-                                    onSuccess(ListenSnapshot(RowSnapshot(data), event!!))
+                                    emit(ListenSnapshot(RowSnapshot(data), event!!))
                                 }
                             }
                         }
@@ -83,7 +90,6 @@ internal suspend fun listen(
     connect()
 }
 
-
 internal fun Listenable.topic() = if (schema == null) {
     "realtime:*"
 } else {
@@ -96,14 +102,11 @@ internal fun Listenable.topic() = if (schema == null) {
             "realtime:${schema}:${table}:${filter}"
         }
     }
-
 }
-
 
 internal interface ListenableI {
     fun on(event: Event): Listenable
-    suspend fun listen(onSuccess: (ListenSnapshot) -> Unit)
-
+    suspend fun listen(action: suspend (value: ListenSnapshot) -> Unit): Listener
 }
 
 open class Listenable internal constructor(
@@ -113,11 +116,10 @@ open class Listenable internal constructor(
     internal var filter: Filter.EqualTo<*>?
 ) : ListenableI {
 
-    override fun on(event: Event) = apply { events.add(event) }
 
-    override suspend fun listen(onSuccess: (ListenSnapshot) -> Unit) = listen(
-        topic = arrayOf(topic()),
-        events = events,
-        onSuccess = onSuccess
-    )
+    override fun on(event: Event) = apply { events.add(event) }
+    override suspend fun listen(action: suspend (value: ListenSnapshot) -> Unit) =
+        Listener(CoroutineScope(Dispatchers.IO).async {
+            listen(topic = arrayOf(topic()), events = events).cancellable().collect(action)
+        }.apply { await() })
 }
