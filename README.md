@@ -3,21 +3,21 @@
 ## Install
 
 ### With BOM
-
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ferhatwi/supabase-kt-bom.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.github.ferhatwi%22%20AND%20a:%22supabase-kt-bom%22)
 ```groovy  
 dependencies {  
- implementation platform("io.github.ferhatwi:supabase-kt-bom:0.1.3")
+ implementation platform("io.github.ferhatwi:supabase-kt-bom:{BOM_VERSION}")
  implementation "io.github.ferhatwi:supabase-database-kt"
 }  
 ```  
 
 ### Without BOM
-
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ferhatwi/supabase-database-kt.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22io.github.ferhatwi%22%20AND%20a:%22supabase-database-kt%22)
 #### NOTICE: BOM is strongly recommended to prevent conflicts.
 
 ```groovy 
 dependencies {  
- implementation "io.github.ferhatwi:supabase-database-kt:0.3.3"
+ implementation "io.github.ferhatwi:supabase-database-kt:{DATABASE_VERSION}"
 }  
 ```  
 

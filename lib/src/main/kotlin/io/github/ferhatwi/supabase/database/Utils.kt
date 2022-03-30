@@ -7,6 +7,7 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.features.*
 import io.ktor.client.features.json.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.client.utils.*
 import io.ktor.http.*
 
@@ -84,24 +85,28 @@ internal fun HeadersBuilder.applicationJson() {
 
 
 internal suspend inline fun <reified T> runCatching(
-    block: () -> T,
+    block: () -> HttpResponse,
     onSuccess: (T) -> Unit,
     defaultValueForNoTransformation: T,
     head: Boolean = false
-) = runCatching { if (head) onSuccess(defaultValueForNoTransformation) else onSuccess(block()) }
-    .getOrElse {
-        when (it) {
-            is ResponseException -> {
-                val map: Map<String, Any?> = it.response.receive()
-                val message = map["message"] as String?
-                val code = map["code"] as String?
-                val statusCode = it.response
-                throw SupabaseDatabaseException("$message $code, $statusCode")
-            }
-            is NoTransformationFoundException -> onSuccess(defaultValueForNoTransformation)
-            else -> throw it
+) = runCatching {
+    if (head) {
+        block()
+        onSuccess(defaultValueForNoTransformation)
+    } else onSuccess(block().receive())
+}.getOrElse {
+    when (it) {
+        is ResponseException -> {
+            val map: Map<String, Any?> = it.response.receive()
+            val message = map["message"] as String?
+            val code = map["code"] as String?
+            val statusCode = it.response
+            throw SupabaseDatabaseException("$message $code, $statusCode")
         }
+        is NoTransformationFoundException -> onSuccess(defaultValueForNoTransformation)
+        else -> throw it
     }
+}
 
 
 @JvmName("asQueryStringSelect")
