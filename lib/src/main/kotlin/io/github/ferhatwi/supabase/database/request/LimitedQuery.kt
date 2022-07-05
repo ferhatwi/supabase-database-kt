@@ -3,6 +3,8 @@ package io.github.ferhatwi.supabase.database.request
 import io.github.ferhatwi.supabase.database.*
 import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
 import io.github.ferhatwi.supabase.database.snapshots.TableSnapshot
+import io.ktor.client.call.*
+import io.ktor.client.utils.*
 import io.ktor.http.*
 import kotlinx.coroutines.flow.flow
 
@@ -16,7 +18,8 @@ open class LimitedQueryC internal constructor(
     internal val orders: MutableList<Order>,
     internal var limit: Int?
 ) {
-    internal open suspend fun call(data: Any? = null, head: Boolean = false) = flow {
+
+    internal open fun call(data: Map<String, Any?>? = null) = flow {
         val url = "${databaseURL()}/rpc/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -26,20 +29,30 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching({
-            getClient().request(
-                schema,
-                url,
-                if (head) HttpMethod.Head else HttpMethod.Post,
-                range,
-                count
-            )
-        }, onSuccess = {
-            emit(it)
-        }, "", head)
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Post,
+            range = range,
+            count = count,
+            body = data ?: EmptyContent
+        ) {
+            applicationJson()
+        }
+
+        emit(request)
     }
 
-    internal open suspend fun get() = flow {
+
+    internal open fun callTableSnapshot(data: Map<String, Any?>? = null) = flow {
+        call(data).collect {
+            TableSnapshot(it.body<List<Map<String, Any?>>>().map { RowSnapshot(it) }).also {
+                emit(it)
+            }
+        }
+    }
+
+    internal open fun get() = flow {
         val url = "${databaseURL()}/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -49,23 +62,27 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching<List<Map<String, Any?>>>({
-            getClient().request(
-                schema,
-                url,
-                if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
-                range,
-                count
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
+            range = range,
+            count = count
+        )
+
+        emit(
+            TableSnapshot(
+                if (selections.isEmpty())
+                    emptyList()
+                else
+                    request.body<List<Map<String, Any?>>>().map {
+                        RowSnapshot(it)
+                    }
             )
-        }, onSuccess = {
-            emit(TableSnapshot(it.map { RowSnapshot(it) }))
-        }, emptyList(), selections.isEmpty())
+        )
     }
 
-    /*internal open suspend fun get(
-        onFailure: (message: String?, code: String?, statusCode: HttpStatusCode) -> Unit,
-        onSuccess: (TableSnapshot) -> Unit
-    ) {
+    internal open fun delete() = flow {
         val url = "${databaseURL()}/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -75,57 +92,32 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching({
-            if (selections.isEmpty())
-                runCatchingTransformation(
-                    suspend {
-                        getClient().request(
-                            schema,
-                            url,
-                            if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
-                            range,
-                            count
-                        )
-                    }, { TableSnapshot(emptyList()) }, "", onSuccess
-                )
-            else
-                runCatchingTransformation<List<Map<String, Any?>>, TableSnapshot>(
-                    suspend {
-                        getClient().request(
-                            schema,
-                            url,
-                            if (selections.isEmpty()) HttpMethod.Head else HttpMethod.Get,
-                            range,
-                            count
-                        )
-                    }, { TableSnapshot(it.map { RowSnapshot(it) }) }, emptyList(), onSuccess
-                )
-        }, onFailure)
-    }*/
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = HttpMethod.Delete,
+            range = range,
+            count = count
+        )
 
-    internal open suspend fun delete() = flow {
-        val url = "${databaseURL()}/$name?${
-            appendQueryString(
-                selections.asQueryString(),
-                filters.asQueryString(),
-                orders.asQueryString(),
-                limitToString(limit)
+        emit(
+            TableSnapshot(
+                if (selections.isEmpty())
+                    emptyList()
+                else
+                    request.body<List<Map<String, Any?>>>().map {
+                        RowSnapshot(it)
+                    }
             )
-        }"
-
-        runCatching<List<Map<String, Any?>>>({
-            getClient().request(schema, url, HttpMethod.Delete, range, count)
-        }, onSuccess = {
-            emit(TableSnapshot(it.map { RowSnapshot(it) }))
-        }, emptyList())
+        )
     }
 
-    internal open suspend fun update(
+    internal open fun update(
         column: String,
         value: Any?
     ) = update(mapOf(column to value))
 
-    internal open suspend fun update(data: Map<String, Any?>) = flow {
+    internal open fun update(data: Map<String, Any?>) = flow {
         val url = "${databaseURL()}/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -135,21 +127,35 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching<List<Map<String, Any?>>>({
-            getClient().request(schema, url, HttpMethod.Patch, range, count, data) {
-                applicationJson()
-            }
-        }, onSuccess = {
-            emit(TableSnapshot(it.map { RowSnapshot(it) }))
-        }, emptyList())
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = HttpMethod.Patch,
+            range = range,
+            count = count,
+            body = data
+        ) {
+            applicationJson()
+        }
+
+        emit(
+            TableSnapshot(
+                if (selections.isEmpty())
+                    emptyList()
+                else
+                    request.body<List<Map<String, Any?>>>().map {
+                        RowSnapshot(it)
+                    }
+            )
+        )
     }
 
-    internal open suspend fun insert(
+    internal open fun insert(
         column: String,
         value: Any?
     ) = insert(data = arrayOf(mapOf(column to value)))
 
-    internal open suspend fun insert(vararg data: Map<String, Any?>) = flow {
+    internal open fun insert(vararg data: Map<String, Any?>) = flow {
         val url = "${databaseURL()}/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -158,23 +164,37 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching<List<Map<String, Any?>>>({
-            getClient().request(schema, url, HttpMethod.Post, range, count, data.ifEmpty {
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = HttpMethod.Post,
+            range = range,
+            count = count,
+            body = data.ifEmpty {
                 mapOf<String, Any?>()
-            }) {
-                applicationJson()
             }
-        }, onSuccess = {
-            emit(TableSnapshot(it.map { RowSnapshot(it) }))
-        }, emptyList())
+        ) {
+            applicationJson()
+        }
+
+        emit(
+            TableSnapshot(
+                if (selections.isEmpty())
+                    emptyList()
+                else
+                    request.body<List<Map<String, Any?>>>().map {
+                        RowSnapshot(it)
+                    }
+            )
+        )
     }
 
-    internal open suspend fun upsert(
+    internal open fun upsert(
         column: String,
         value: Any?
     ) = insert(data = arrayOf(mapOf(column to value)))
 
-    internal open suspend fun upsert(vararg data: Map<String, Any?>) = flow {
+    internal open fun upsert(vararg data: Map<String, Any?>) = flow {
         val url = "${databaseURL()}/$name?${
             appendQueryString(
                 selections.asQueryString(),
@@ -183,15 +203,30 @@ open class LimitedQueryC internal constructor(
             )
         }"
 
-        runCatching<List<Map<String, Any?>>>({
-            getClient().request(schema, url, HttpMethod.Post, range, count, data.ifEmpty {
+        val request = getClient().request(
+            schema = schema,
+            url = url,
+            method = HttpMethod.Post,
+            range = range,
+            count = count,
+            body = data.ifEmpty {
                 mapOf<String, Any?>()
-            }, true) {
-                applicationJson()
-            }
-        }, onSuccess = {
-            emit(TableSnapshot(it.map { RowSnapshot(it) }))
-        }, emptyList())
+            },
+            merge = true
+        ) {
+            applicationJson()
+        }
+
+        emit(
+            TableSnapshot(
+                if (selections.isEmpty())
+                    emptyList()
+                else
+                    request.body<List<Map<String, Any?>>>().map {
+                        RowSnapshot(it)
+                    }
+            )
+        )
     }
 }
 
@@ -205,7 +240,8 @@ open class LimitedQueryR internal constructor(
     orders: MutableList<Order>,
     limit: Int?
 ) : LimitedQueryC(schema, function, selections, range, count, filters, orders, limit) {
-    public override suspend fun call(data: Any?, head: Boolean) = super.call(data, head)
+    public override fun call(data: Map<String, Any?>?) = super.call(data)
+    public override fun callTableSnapshot(data: Map<String, Any?>?) = super.callTableSnapshot(data)
 }
 
 open class LimitedQuery internal constructor(
@@ -218,10 +254,10 @@ open class LimitedQuery internal constructor(
     orders: MutableList<Order>,
     limit: Int?
 ) : LimitedQueryC(schema, table, selections, range, count, filters, orders, limit) {
-    public override suspend fun get() = super.get()
-    public override suspend fun delete() = super.delete()
-    public override suspend fun update(column: String, value: Any?) = super.update(column, value)
-    public override suspend fun update(data: Map<String, Any?>) = super.update(data)
+    public override fun get() = super.get()
+    public override fun delete() = super.delete()
+    public override fun update(column: String, value: Any?) = super.update(column, value)
+    public override fun update(data: Map<String, Any?>) = super.update(data)
 }
 
 open class LimitedQueryX internal constructor(
@@ -233,10 +269,9 @@ open class LimitedQueryX internal constructor(
     orders: MutableList<Order>,
     limit: Int?
 ) : LimitedQueryC(schema, table, selections, range, count, mutableListOf(), orders, limit) {
-    public override suspend fun get() = super.get()
-    public override suspend fun delete() = super.delete()
-    public override suspend fun insert(column: String, value: Any?) = super.insert(column, value)
-    public override suspend fun insert(vararg data: Map<String, Any?>) = super.insert(*data)
-    public override suspend fun upsert(column: String, value: Any?) = super.upsert(column, value)
-    public override suspend fun upsert(vararg data: Map<String, Any?>) = super.upsert(*data)
+    public override fun get() = super.get()
+    public override fun insert(column: String, value: Any?) = super.insert(column, value)
+    public override fun insert(vararg data: Map<String, Any?>) = super.insert(*data)
+    public override fun upsert(column: String, value: Any?) = super.upsert(column, value)
+    public override fun upsert(vararg data: Map<String, Any?>) = super.upsert(*data)
 }

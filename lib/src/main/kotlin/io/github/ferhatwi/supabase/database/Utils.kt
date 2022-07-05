@@ -2,27 +2,25 @@ package io.github.ferhatwi.supabase.database
 
 import io.github.ferhatwi.supabase.Supabase
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
-import io.ktor.client.features.*
-import io.ktor.client.features.json.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.client.utils.*
 import io.ktor.http.*
+import io.ktor.serialization.gson.*
 
 internal fun databaseURL() = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1"
 
 internal fun getClient(): HttpClient {
     return HttpClient(CIO) {
-        install(JsonFeature) {
-            serializer = GsonSerializer()
+        install(ContentNegotiation) {
+            gson()
         }
     }
 }
 
-
-internal suspend inline fun <reified T> HttpClient.request(
+internal suspend inline fun HttpClient.request(
     schema: String,
     url: String,
     method: HttpMethod,
@@ -31,10 +29,10 @@ internal suspend inline fun <reified T> HttpClient.request(
     body: Any = EmptyContent,
     merge: Boolean = false,
     noinline headers: HeadersBuilder.() -> Unit = {}
-): T {
+): HttpResponse {
     return request(url) {
         this.method = method
-        this.body = body
+        setBody(body)
         headers {
             profile(method, schema)
             apiKey()
@@ -83,37 +81,11 @@ internal fun HeadersBuilder.applicationJson() {
     append(HttpHeaders.ContentType, "application/json")
 }
 
-
-internal suspend inline fun <reified T> runCatching(
-    block: () -> HttpResponse,
-    onSuccess: (T) -> Unit,
-    defaultValueForNoTransformation: T,
-    head: Boolean = false
-) = runCatching {
-    if (head) {
-        block()
-        onSuccess(defaultValueForNoTransformation)
-    } else onSuccess(block().receive())
-}.getOrElse {
-    when (it) {
-        is ResponseException -> {
-            val map: Map<String, Any?> = it.response.receive()
-            val message = map["message"] as String?
-            val code = map["code"] as String?
-            val statusCode = it.response
-            throw SupabaseDatabaseException("$message $code, $statusCode")
-        }
-        is NoTransformationFoundException -> onSuccess(defaultValueForNoTransformation)
-        else -> throw it
-    }
-}
-
-
 @JvmName("asQueryStringSelect")
 internal fun List<String>.asQueryString() = if (isEmpty()) {
     ""
 } else {
-    "select=${joinToString(separator = "&")}"
+    "select=${joinToString(separator = ",")}"
 }
 
 
@@ -143,3 +115,4 @@ internal fun appendQueryString(vararg queryStrings: String) = queryStrings.toMut
         it.isEmpty()
     }
 }.joinToString(separator = "&")
+

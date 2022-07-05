@@ -2,7 +2,6 @@ package io.github.ferhatwi.supabase.database.request
 
 import io.github.ferhatwi.supabase.database.Event
 import io.github.ferhatwi.supabase.database.Filter
-import io.github.ferhatwi.supabase.database.snapshots.ListenSnapshot
 
 
 private fun <A : LimitedQueryC> A.select(vararg columns: String): A =
@@ -33,6 +32,5 @@ open class SelectableQuery internal constructor(
     private fun listenable() = Listenable(schema, name, mutableListOf(), null)
 
     override fun on(event: Event) = listenable().on(event)
-    override suspend fun listen(action: suspend (value: ListenSnapshot) -> Unit) =
-        listenable().listen(action)
+    override fun listen() = listenable().listen()
 }

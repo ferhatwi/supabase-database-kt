@@ -46,7 +46,7 @@ sealed class Filter {
         is RangeAdjacentTo -> "${column}=adj.$value"
         is RangeOverlaps -> "${column}=ov.$value"
         is TextSearch -> {
-            "$column=${config}fts${config.text}.$value"
+            "$column=${type}fts${config?.let { "($it)" } ?: ""}.$value"
         }
 
     }
@@ -82,7 +82,8 @@ sealed class Filter {
     class TextSearch(
         val column: String,
         val value: String,
-        val config: TextConfig
+        val config: String?,
+        val type: TextSearchType
     ) : Filter()
 
     //data class Filter<T>(val json : String) : Filter()

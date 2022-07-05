@@ -1,5 +1,6 @@
 package io.github.ferhatwi.supabase.database.snapshots
 
-class TableSnapshot internal constructor(val rows: List<RowSnapshot>) {
-    override fun toString() = rows.toString()
+data class TableSnapshot internal constructor(val rows: List<RowSnapshot>) {
+    fun single() = rows[0]
+    fun maybeSingle() = if (rows.isEmpty()) null else single()
 }

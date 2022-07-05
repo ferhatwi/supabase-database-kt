@@ -1,6 +1,6 @@
 plugins {
     // Apply the org.jetbrains.kotlin.jvm Plugin to add support for Kotlin.
-    id("org.jetbrains.kotlin.jvm") version "1.6.10"
+    id("org.jetbrains.kotlin.jvm") version "1.7.0"
 
     // Apply the java-library plugin for API and implementation separation.
     `java-library`
@@ -25,7 +25,7 @@ publishing {
                 from(components["java"])
                 groupId = "io.github.ferhatwi"
                 artifactId = "supabase-database-kt"
-                version = "0.3.4"
+                version = "0.3.5"
                 name.set("Supabase Database")
                 description.set("Kotlin client for Supabase Database with Realtime")
                 url.set("http://www.github.com/ferhatwi/supabase-database-kt")
@@ -73,5 +73,7 @@ dependencies {
     // Use the Kotlin JDK 8 standard library.
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
-    api("io.github.ferhatwi:supabase-kt:0.2.0")
+    api("io.github.ferhatwi:supabase-kt:0.2.5")
+
+    api("io.ktor:ktor-client-websockets:2.0.3")
 }

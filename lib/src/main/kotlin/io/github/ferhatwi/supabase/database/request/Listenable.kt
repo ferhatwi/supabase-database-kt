@@ -4,29 +4,25 @@ import com.google.gson.Gson
 import io.github.ferhatwi.supabase.Supabase
 import io.github.ferhatwi.supabase.database.Event
 import io.github.ferhatwi.supabase.database.Filter
-import io.github.ferhatwi.supabase.database.Listener
 import io.github.ferhatwi.supabase.database.snapshots.ListenSnapshot
 import io.github.ferhatwi.supabase.database.snapshots.RowSnapshot
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
-import io.ktor.client.features.websocket.*
-import io.ktor.http.cio.websocket.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
+import io.ktor.client.plugins.websocket.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.channels.onClosed
 import kotlinx.coroutines.channels.onSuccess
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.cancellable
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 
 
-internal suspend fun listen(
+internal fun listen(
     vararg topic: String,
     events: List<Event> = listOf()
 ) = flow {
     val request =
-        "wss://${Supabase.PROJECT_ID}.supabase.co/realtime/v1/websocket?vsn=1.0.0&apikey=${Supabase.AUTHORIZATION}"
+        "wss://${Supabase.PROJECT_ID}.supabase.co/realtime/v1/websocket?vsn=1.0.0&apikey=${Supabase.API_KEY}"
 
     val client = HttpClient(CIO) {
         install(WebSockets)
@@ -40,7 +36,7 @@ internal suspend fun listen(
                         mapOf(
                             "topic" to it,
                             "event" to "phx_join",
-                            "payload" to "{}",
+                            "payload" to mapOf("user_token" to Supabase.AUTHORIZATION),
                             "ref" to "None"
                         )
                     )
@@ -59,12 +55,12 @@ internal suspend fun listen(
                         if (whole.containsKey("payload")) {
                             val payload = whole["payload"] as Map<String, Any?>
 
-                            val data = if (payload.containsKey("record")) {
-                                payload["record"] as Map<String, Any?>
-                            } else {
-                                if (payload.containsKey("old_record")) payload["old_record"] as Map<String, Any?> else mapOf()
-                            }
-                            if (data.isNotEmpty()) {
+                            val record =
+                                if (payload.containsKey("record")) payload["record"] as Map<String, Any?> else null
+                            val oldRecord =
+                                if (payload.containsKey("old_record")) payload["old_record"] as Map<String, Any?> else null
+
+                            if (record != null) {
 
                                 val event = when (whole["event"]) {
                                     "INSERT" -> Event.Insert
@@ -74,7 +70,13 @@ internal suspend fun listen(
                                 }
 
                                 if (events.isEmpty() || events.contains(event)) {
-                                    emit(ListenSnapshot(RowSnapshot(data), event!!))
+                                    emit(
+                                        ListenSnapshot(
+                                            record = RowSnapshot(record),
+                                            oldRecord = oldRecord?.let { RowSnapshot(it) },
+                                            event = event!!
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -106,7 +108,7 @@ internal fun Listenable.topic() = if (schema == null) {
 
 internal interface ListenableI {
     fun on(event: Event): Listenable
-    suspend fun listen(action: suspend (value: ListenSnapshot) -> Unit): Listener
+    fun listen(): Flow<ListenSnapshot>
 }
 
 open class Listenable internal constructor(
@@ -118,8 +120,5 @@ open class Listenable internal constructor(
 
 
     override fun on(event: Event) = apply { events.add(event) }
-    override suspend fun listen(action: suspend (value: ListenSnapshot) -> Unit) =
-        Listener(CoroutineScope(Dispatchers.IO).async {
-            listen(topic = arrayOf(topic()), events = events).cancellable().collect(action)
-        }.apply { await() })
+    override fun listen() = listen(topic = arrayOf(topic()), events = events).cancellable()
 }

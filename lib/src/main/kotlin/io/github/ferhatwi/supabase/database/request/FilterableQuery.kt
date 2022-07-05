@@ -3,7 +3,7 @@ package io.github.ferhatwi.supabase.database.request
 import io.github.ferhatwi.supabase.database.Count
 import io.github.ferhatwi.supabase.database.Filter
 import io.github.ferhatwi.supabase.database.Range
-import io.github.ferhatwi.supabase.database.TextConfig
+import io.github.ferhatwi.supabase.database.TextSearchType
 
 private fun <A : LimitedQueryC> A.or(vararg filters: Filter): A =
     apply { this.filters.add(Filter.Or(*filters)) }
@@ -77,8 +77,13 @@ private fun <A : LimitedQueryC> A.rangeAdjacentTo(column: String, value: Range):
 private fun <A : LimitedQueryC> A.rangeOverlaps(column: String, value: Range): A =
     apply { filters.add(Filter.RangeOverlaps(column, value)) }
 
-private fun <A : LimitedQueryC> A.textSearch(column: String, value: String, config: TextConfig): A =
-    apply { filters.add(Filter.TextSearch(column, value, config)) }
+private fun <A : LimitedQueryC> A.textSearch(
+    column: String,
+    value: String,
+    config: String? = null,
+    type: TextSearchType = TextSearchType.None
+): A =
+    apply { filters.add(Filter.TextSearch(column, value, config, type)) }
 
 
 open class FilterableQueryR internal constructor(
@@ -135,8 +140,12 @@ open class FilterableQueryR internal constructor(
 
     fun rangeOverlaps(column: String, value: Range) = rangeOverlaps<FilterableQueryR>(column, value)
 
-    fun textSearch(column: String, value: String, config: TextConfig) =
-        textSearch<FilterableQueryR>(column, value, config)
+    fun textSearch(
+        column: String,
+        value: String,
+        config: String? = null,
+        type: TextSearchType = TextSearchType.None
+    ) = textSearch<FilterableQueryR>(column, value, config, type)
 }
 
 open class FilterableQuery internal constructor(
@@ -192,8 +201,12 @@ open class FilterableQuery internal constructor(
 
     fun rangeOverlaps(column: String, value: Range) = rangeOverlaps<FilterableQuery>(column, value)
 
-    fun textSearch(column: String, value: String, config: TextConfig) =
-        textSearch<FilterableQuery>(column, value, config)
+    fun textSearch(
+        column: String,
+        value: String,
+        config: String? = null,
+        type: TextSearchType = TextSearchType.None
+    ) = textSearch<FilterableQuery>(column, value, config, type)
 }
 
 open class FilterableQueryX internal constructor(
@@ -252,6 +265,10 @@ open class FilterableQueryX internal constructor(
 
     fun rangeOverlaps(column: String, value: Range) = filterableQuery().rangeOverlaps(column, value)
 
-    fun textSearch(column: String, value: String, config: TextConfig) =
-        filterableQuery().textSearch(column, value, config)
+    fun textSearch(
+        column: String,
+        value: String,
+        config: String? = null,
+        type: TextSearchType = TextSearchType.None
+    ) = filterableQuery().textSearch(column, value, config, type)
 }
