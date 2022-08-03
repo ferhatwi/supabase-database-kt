@@ -1,69 +1,140 @@
 package io.github.ferhatwi.supabase.database
 
 import io.github.ferhatwi.supabase.Supabase
+import io.github.ferhatwi.supabase.database.query.Count
+import io.github.ferhatwi.supabase.database.query.Filter
+import io.github.ferhatwi.supabase.database.query.Order
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.client.utils.*
 import io.ktor.http.*
 import io.ktor.serialization.gson.*
 
-internal fun databaseURL() = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1"
+@InternalSupabaseDatabaseAPI
+val databaseURL = "https://${Supabase.PROJECT_ID}.supabase.co/rest/v1"
 
-internal fun getClient(): HttpClient {
-    return HttpClient(CIO) {
+
+@InternalSupabaseDatabaseAPI
+val client
+    get() = HttpClient(CIO) {
         install(ContentNegotiation) {
             gson()
         }
     }
-}
 
-internal suspend inline fun HttpClient.request(
+
+@InternalSupabaseDatabaseAPI
+suspend inline fun HttpClient.post(
     schema: String,
     url: String,
-    method: HttpMethod,
-    range: Pair<Int, Int>? = null,
-    count: Count? = null,
+    count: Count?,
+    range: Pair<Int, Int>?,
     body: Any = EmptyContent,
-    merge: Boolean = false,
-    noinline headers: HeadersBuilder.() -> Unit = {}
-): HttpResponse {
-    return request(url) {
-        this.method = method
-        setBody(body)
-        headers {
-            profile(method, schema)
-            apiKey()
-            authorize()
-            range(range)
-            preference(count, url.contains("select"), merge)
-            headers()
-        }
+    mergeDuplicated: Boolean
+) = post(url) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+    headers {
+        append("Content-Profile", schema)
+        apiKey()
+        authorize()
+        range(range)
+        preference(count, url.contains("select"), mergeDuplicated)
     }
 }
 
-internal fun HttpRequestBuilder.profile(httpMethod: HttpMethod, name: String) {
-    if (name != "public") headers.append(
-        if (httpMethod == HttpMethod.Get || httpMethod == HttpMethod.Head) "Accept-Profile" else "Content-Profile",
-        name
-    )
+
+@InternalSupabaseDatabaseAPI
+suspend inline fun HttpClient.head(
+    schema: String,
+    url: String,
+    count: Count?,
+    range: Pair<Int, Int>?,
+    body: Any = EmptyContent
+) = head(url) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+    headers {
+        append("Accept-Profile", schema)
+        apiKey()
+        authorize()
+        range(range)
+        preference(count, representation = false, merge = false)
+    }
 }
 
-internal fun HttpRequestBuilder.apiKey() {
+@InternalSupabaseDatabaseAPI
+suspend inline fun HttpClient.get(
+    schema: String,
+    url: String,
+    count: Count?,
+    range: Pair<Int, Int>?
+) = get(url) {
+    headers {
+        append("Accept-Profile", schema)
+        apiKey()
+        authorize()
+        range(range)
+        preference(count, representation = url.contains("select"), merge = false)
+    }
+}
+
+@InternalSupabaseDatabaseAPI
+suspend inline fun HttpClient.delete(
+    schema: String,
+    url: String,
+    count: Count?,
+    range: Pair<Int, Int>?
+) = delete(url) {
+    headers {
+        append("Content-Profile", schema)
+        apiKey()
+        authorize()
+        range(range)
+        preference(count, representation = url.contains("select"), merge = false)
+    }
+}
+
+
+@InternalSupabaseDatabaseAPI
+suspend inline fun HttpClient.patch(
+    schema: String,
+    url: String,
+    count: Count?,
+    range: Pair<Int, Int>?,
+    body: Any = EmptyContent
+) = patch(url) {
+    contentType(ContentType.Application.Json)
+    setBody(body)
+    headers {
+        append("Content-Profile", schema)
+        apiKey()
+        authorize()
+        range(range)
+        preference(count, representation = url.contains("select"), merge = false)
+    }
+}
+
+
+@InternalSupabaseDatabaseAPI
+fun HttpRequestBuilder.apiKey() {
     headers.append("apikey", Supabase.API_KEY)
 }
 
-internal fun HttpRequestBuilder.authorize() {
+@InternalSupabaseDatabaseAPI
+fun HttpRequestBuilder.authorize() {
     headers.append(HttpHeaders.Authorization, "Bearer ${Supabase.AUTHORIZATION}")
 }
 
-internal fun HttpRequestBuilder.range(range: Pair<Int, Int>?) {
+@InternalSupabaseDatabaseAPI
+fun HttpRequestBuilder.range(range: Pair<Int, Int>?) {
     if (range != null) headers.append(HttpHeaders.Range, "${range.first}-${range.second}")
 }
 
-internal fun HttpRequestBuilder.preference(count: Count?, representation: Boolean, merge: Boolean) {
+@InternalSupabaseDatabaseAPI
+fun HttpRequestBuilder.preference(count: Count?, representation: Boolean, merge: Boolean) {
     val array = mutableListOf<String>()
     if (count != null) {
         array.add("count=$count")
@@ -77,20 +148,17 @@ internal fun HttpRequestBuilder.preference(count: Count?, representation: Boolea
     headers.append(HttpHeaders.Prefer, array.joinToString(separator = ","))
 }
 
-internal fun HeadersBuilder.applicationJson() {
-    append(HttpHeaders.ContentType, "application/json")
-}
-
-@JvmName("asQueryStringSelect")
-internal fun List<String>.asQueryString() = if (isEmpty()) {
+@InternalSupabaseDatabaseAPI
+@JvmName("toQuerySelect")
+fun List<String>.toQuery() = if (isEmpty()) {
     ""
 } else {
     "select=${joinToString(separator = ",")}"
 }
 
-
-@JvmName("asQueryStringFilter")
-internal fun MutableList<Filter>.asQueryString() = if (isEmpty()) {
+@InternalSupabaseDatabaseAPI
+@JvmName("toQueryFilter")
+fun List<Filter>.toQuery() = if (isEmpty()) {
     ""
 } else {
     joinToString("&") {
@@ -98,9 +166,9 @@ internal fun MutableList<Filter>.asQueryString() = if (isEmpty()) {
     }
 }
 
-
-@JvmName("asQueryStringOrder")
-internal fun MutableList<Order>.asQueryString() = if (isEmpty()) {
+@InternalSupabaseDatabaseAPI
+@JvmName("toQueryOrder")
+fun List<Order>.toQuery() = if (isEmpty()) {
     ""
 } else {
     joinToString("&") {
@@ -108,11 +176,10 @@ internal fun MutableList<Order>.asQueryString() = if (isEmpty()) {
     }
 }
 
-internal fun limitToString(limit: Int?) = if (limit == null) "" else "limit=$limit"
-
-internal fun appendQueryString(vararg queryStrings: String) = queryStrings.toMutableList().apply {
+@InternalSupabaseDatabaseAPI
+fun appendQueries(vararg queryStrings: String) = queryStrings.toMutableList().apply {
     removeIf {
         it.isEmpty()
     }
-}.joinToString(separator = "&")
+}.joinToString(separator = "&").encodeURLPath()
 

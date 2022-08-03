@@ -1,4 +1,4 @@
-package io.github.ferhatwi.supabase.database
+package io.github.ferhatwi.supabase.database.query
 
 sealed class TextSearchType {
     override fun toString() = when (this) {
